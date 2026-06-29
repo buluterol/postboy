@@ -1,4 +1,5 @@
 <?php
+
 /**
  * History API
  * 
@@ -19,15 +20,15 @@ switch ($method) {
     case 'GET':
         handleGet();
         break;
-    
+
     case 'POST':
         handlePost();
         break;
-    
+
     case 'DELETE':
         handleDelete();
         break;
-    
+
     default:
         sendError('Method not allowed', 405);
 }
@@ -35,17 +36,18 @@ switch ($method) {
 /**
  * GET - List request history
  */
-function handleGet() {
+function handleGet()
+{
     $history = readJsonFile('history.json');
-    
+
     // Sort by timestamp descending (newest first)
-    usort($history, function($a, $b) {
+    usort($history, function ($a, $b) {
         return strtotime($b['timestamp']) - strtotime($a['timestamp']);
     });
-    
+
     // Limit to last 100 items
     $history = array_slice($history, 0, 100);
-    
+
     sendJson([
         'success' => true,
         'data' => $history
@@ -55,15 +57,16 @@ function handleGet() {
 /**
  * POST - Add request to history
  */
-function handlePost() {
+function handlePost()
+{
     $data = getRequestBody();
-    
+
     // Validate required fields
     $validation = validateRequired($data, ['method', 'url']);
     if ($validation !== true) {
         sendError($validation);
     }
-    
+
     // Create history entry
     $entry = [
         'id' => generateId(),
@@ -73,14 +76,14 @@ function handlePost() {
         'responseTime' => $data['responseTime'] ?? null,
         'timestamp' => date('c')
     ];
-    
+
     // Add to history
     $history = readJsonFile('history.json');
     array_unshift($history, $entry); // Add to beginning
-    
+
     // Keep only last 100 items
     $history = array_slice($history, 0, 100);
-    
+
     if (writeJsonFile('history.json', $history)) {
         sendJson([
             'success' => true,
@@ -95,24 +98,25 @@ function handlePost() {
 /**
  * DELETE - Clear history or delete specific item
  */
-function handleDelete() {
+function handleDelete()
+{
     $id = $_GET['id'] ?? null;
-    
+
     if ($id) {
         // Delete specific item
         $history = readJsonFile('history.json');
         $originalCount = count($history);
-        
-        $history = array_filter($history, function($item) use ($id) {
+
+        $history = array_filter($history, function ($item) use ($id) {
             return $item['id'] !== $id;
         });
-        
+
         $history = array_values($history);
-        
+
         if (count($history) === $originalCount) {
             sendError('History item not found', 404);
         }
-        
+
         if (writeJsonFile('history.json', $history)) {
             sendJson([
                 'success' => true,

@@ -14,16 +14,16 @@ export class CollectionManager {
         this.container = container;
         this.collections = [];
         this.expandedCollections = new Set();
-        
+
         this.init();
     }
-    
+
     async init() {
         await this.loadCollections();
         this.render();
         this.subscribeToEvents();
     }
-    
+
     async loadCollections() {
         try {
             this.collections = await StorageService.getCollections();
@@ -32,7 +32,7 @@ export class CollectionManager {
             this.collections = [];
         }
     }
-    
+
     render() {
         if (this.collections.length === 0) {
             this.container.innerHTML = `
@@ -43,20 +43,20 @@ export class CollectionManager {
             `;
             return;
         }
-        
+
         this.container.innerHTML = `
             <div class="space-y-1">
                 ${this.collections.map(collection => this.renderCollection(collection)).join('')}
             </div>
         `;
-        
+
         this.attachEventListeners();
     }
-    
+
     renderCollection(collection) {
         const isExpanded = this.expandedCollections.has(collection.id);
         const requestCount = collection.requests?.length || 0;
-        
+
         return `
             <div class="collection-item" data-collection-id="${collection.id}">
                 <!-- Collection Header -->
@@ -97,10 +97,10 @@ export class CollectionManager {
                 <!-- Requests List -->
                 ${isExpanded ? `
                     <div class="ml-6 mt-1 space-y-1">
-                        ${collection.requests && collection.requests.length > 0 
-                            ? collection.requests.map(request => this.renderRequest(request, collection.id)).join('')
-                            : '<p class="text-xs text-gray-500 dark:text-gray-400 p-2">No requests</p>'
-                        }
+                        ${collection.requests && collection.requests.length > 0
+                    ? collection.requests.map(request => this.renderRequest(request, collection.id)).join('')
+                    : '<p class="text-xs text-gray-500 dark:text-gray-400 p-2">No requests</p>'
+                }
                         <button class="add-request w-full text-left text-xs text-primary-600 dark:text-primary-400 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded" 
                                 data-collection-id="${collection.id}">
                             + Add Request
@@ -110,10 +110,10 @@ export class CollectionManager {
             </div>
         `;
     }
-    
+
     renderRequest(request, collectionId) {
         const methodClass = METHOD_COLORS[request.method] || 'method-get';
-        
+
         return `
             <div class="request-item flex items-center gap-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer group"
                  data-request-id="${request.id}" data-collection-id="${collectionId}">
@@ -131,7 +131,7 @@ export class CollectionManager {
             </div>
         `;
     }
-    
+
     attachEventListeners() {
         // Collection toggle
         this.container.querySelectorAll('.collection-toggle').forEach(btn => {
@@ -141,7 +141,7 @@ export class CollectionManager {
                 this.toggleCollection(collectionId);
             });
         });
-        
+
         // Collection rename
         this.container.querySelectorAll('.collection-rename').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -150,7 +150,7 @@ export class CollectionManager {
                 this.renameCollection(collectionId);
             });
         });
-        
+
         // Collection delete
         this.container.querySelectorAll('.collection-delete').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -159,18 +159,18 @@ export class CollectionManager {
                 this.deleteCollection(collectionId);
             });
         });
-        
+
         // Request click - load request
         this.container.querySelectorAll('.request-item').forEach(item => {
             item.addEventListener('click', (e) => {
                 if (e.target.closest('button')) return;
-                
+
                 const requestId = item.dataset.requestId;
                 const collectionId = item.dataset.collectionId;
                 this.loadRequest(collectionId, requestId);
             });
         });
-        
+
         // Request delete
         this.container.querySelectorAll('.request-delete').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -180,7 +180,7 @@ export class CollectionManager {
                 this.deleteRequest(collectionId, requestId);
             });
         });
-        
+
         // Add request
         this.container.querySelectorAll('.add-request').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -190,7 +190,7 @@ export class CollectionManager {
             });
         });
     }
-    
+
     toggleCollection(collectionId) {
         if (this.expandedCollections.has(collectionId)) {
             this.expandedCollections.delete(collectionId);
@@ -199,11 +199,11 @@ export class CollectionManager {
         }
         this.render();
     }
-    
+
     async createCollection() {
         const name = prompt('Enter collection name:');
         if (!name) return;
-        
+
         try {
             const collection = await StorageService.createCollection({ name, requests: [] });
             this.collections.push(collection);
@@ -216,20 +216,20 @@ export class CollectionManager {
             showToast('Failed to create collection', 'error');
         }
     }
-    
+
     async renameCollection(collectionId) {
         const collection = this.collections.find(c => c.id === collectionId);
         if (!collection) return;
-        
+
         const newName = prompt('Enter new name:', collection.name);
         if (!newName || newName === collection.name) return;
-        
+
         try {
-            const updated = await StorageService.updateCollection(collectionId, { 
-                ...collection, 
-                name: newName 
+            const updated = await StorageService.updateCollection(collectionId, {
+                ...collection,
+                name: newName
             });
-            
+
             const index = this.collections.findIndex(c => c.id === collectionId);
             this.collections[index] = updated;
             this.render();
@@ -240,10 +240,10 @@ export class CollectionManager {
             showToast('Failed to rename collection', 'error');
         }
     }
-    
+
     async deleteCollection(collectionId) {
         if (!confirm('Are you sure you want to delete this collection?')) return;
-        
+
         try {
             await StorageService.deleteCollection(collectionId);
             this.collections = this.collections.filter(c => c.id !== collectionId);
@@ -256,36 +256,36 @@ export class CollectionManager {
             showToast('Failed to delete collection', 'error');
         }
     }
-    
+
     loadRequest(collectionId, requestId) {
         const collection = this.collections.find(c => c.id === collectionId);
         if (!collection) return;
-        
+
         const request = collection.requests.find(r => r.id === requestId);
         if (!request) return;
-        
+
         EventBus.emit(EVENTS.REQUEST_LOADED, request);
     }
-    
+
     async saveRequest(request, collectionId) {
         const collection = this.collections.find(c => c.id === collectionId);
         if (!collection) return;
-        
+
         const requestWithId = {
             ...request,
             id: request.id || generateId(),
             name: request.name || request.url
         };
-        
+
         // Check if request already exists
         const existingIndex = collection.requests.findIndex(r => r.id === requestWithId.id);
-        
+
         if (existingIndex >= 0) {
             collection.requests[existingIndex] = requestWithId;
         } else {
             collection.requests.push(requestWithId);
         }
-        
+
         try {
             await StorageService.updateCollection(collectionId, collection);
             await this.loadCollections();
@@ -298,15 +298,15 @@ export class CollectionManager {
             showToast('Failed to save request', 'error');
         }
     }
-    
+
     async deleteRequest(collectionId, requestId) {
         if (!confirm('Are you sure you want to delete this request?')) return;
-        
+
         const collection = this.collections.find(c => c.id === collectionId);
         if (!collection) return;
-        
+
         collection.requests = collection.requests.filter(r => r.id !== requestId);
-        
+
         try {
             await StorageService.updateCollection(collectionId, collection);
             await this.loadCollections();
@@ -318,11 +318,11 @@ export class CollectionManager {
             showToast('Failed to delete request', 'error');
         }
     }
-    
+
     async addRequestPrompt(collectionId) {
         const name = prompt('Enter request name:');
         if (!name) return;
-        
+
         const newRequest = {
             id: generateId(),
             name: name,
@@ -331,11 +331,11 @@ export class CollectionManager {
             headers: [],
             body: ''
         };
-        
+
         await this.saveRequest(newRequest, collectionId);
         EventBus.emit(EVENTS.REQUEST_LOADED, newRequest);
     }
-    
+
     subscribeToEvents() {
         // No events to subscribe to yet
     }

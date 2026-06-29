@@ -14,16 +14,16 @@ export class EnvironmentManager {
         this.environments = [];
         this.activeEnvironment = null;
         this.modalElement = null;
-        
+
         this.init();
     }
-    
+
     async init() {
         await this.loadEnvironments();
         this.loadActiveEnvironment();
         this.updateEnvironmentSelector();
     }
-    
+
     async loadEnvironments() {
         try {
             this.environments = await StorageService.getEnvironments();
@@ -32,7 +32,7 @@ export class EnvironmentManager {
             this.environments = [];
         }
     }
-    
+
     loadActiveEnvironment() {
         // Load from localStorage
         const savedId = localStorage.getItem(STORAGE_KEYS.ACTIVE_ENVIRONMENT);
@@ -43,17 +43,17 @@ export class EnvironmentManager {
                 return;
             }
         }
-        
+
         // Try to find an active environment
         const active = this.environments.find(e => e.isActive);
         if (active) {
             this.setActiveEnvironment(active);
         }
     }
-    
+
     setActiveEnvironment(environment) {
         this.activeEnvironment = environment;
-        
+
         // Convert variables array to object
         const variables = {};
         if (environment && environment.variables) {
@@ -63,20 +63,20 @@ export class EnvironmentManager {
                 }
             });
         }
-        
+
         // Save to localStorage
         localStorage.setItem(STORAGE_KEYS.ACTIVE_ENVIRONMENT, environment?.id || '');
-        
+
         // Emit event
         EventBus.emit(EVENTS.ENVIRONMENT_CHANGED, variables);
-        
+
         this.updateEnvironmentSelector();
     }
-    
+
     updateEnvironmentSelector() {
         const select = document.getElementById('activeEnvironment');
         if (!select) return;
-        
+
         select.innerHTML = `
             <option value="">No Environment</option>
             ${this.environments.map(env => `
@@ -85,7 +85,7 @@ export class EnvironmentManager {
                 </option>
             `).join('')}
         `;
-        
+
         // Update select change handler
         select.onchange = (e) => {
             const envId = e.target.value;
@@ -93,7 +93,7 @@ export class EnvironmentManager {
             this.setActiveEnvironment(env || null);
         };
     }
-    
+
     showModal() {
         this.modalElement = createElement(`
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="envModal">
@@ -123,18 +123,18 @@ export class EnvironmentManager {
                 </div>
             </div>
         `);
-        
+
         document.getElementById('modals').appendChild(this.modalElement);
-        
+
         // Attach event listeners
         this.attachModalEventListeners();
     }
-    
+
     renderEnvironmentsList() {
         if (this.environments.length === 0) {
             return '<p class="text-gray-500 dark:text-gray-400 text-sm">No environments yet. Create one to get started.</p>';
         }
-        
+
         return this.environments.map(env => `
             <div class="panel">
                 <div class="panel-header flex items-center justify-between">
@@ -178,25 +178,25 @@ export class EnvironmentManager {
             </div>
         `).join('');
     }
-    
+
     attachModalEventListeners() {
         // Close modal
         this.modalElement.querySelector('#closeEnvModal').addEventListener('click', () => {
             this.closeModal();
         });
-        
+
         // Close on background click
         this.modalElement.addEventListener('click', (e) => {
             if (e.target.id === 'envModal') {
                 this.closeModal();
             }
         });
-        
+
         // Add environment
         this.modalElement.querySelector('#addEnvironmentBtn').addEventListener('click', () => {
             this.createEnvironment();
         });
-        
+
         // Active radio
         this.modalElement.querySelectorAll('.env-active-radio').forEach(radio => {
             radio.addEventListener('change', (e) => {
@@ -205,7 +205,7 @@ export class EnvironmentManager {
                 this.setActiveEnvironment(env);
             });
         });
-        
+
         // Edit environment
         this.modalElement.querySelectorAll('.env-edit').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -213,7 +213,7 @@ export class EnvironmentManager {
                 this.editEnvironment(envId);
             });
         });
-        
+
         // Delete environment
         this.modalElement.querySelectorAll('.env-delete').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -222,31 +222,31 @@ export class EnvironmentManager {
             });
         });
     }
-    
+
     closeModal() {
         if (this.modalElement) {
             this.modalElement.remove();
             this.modalElement = null;
         }
     }
-    
+
     async createEnvironment() {
         const name = prompt('Enter environment name:');
         if (!name) return;
-        
+
         try {
             const environment = await StorageService.createEnvironment({
                 name,
                 variables: [],
                 isActive: this.environments.length === 0
             });
-            
+
             this.environments.push(environment);
-            
+
             if (this.environments.length === 1) {
                 this.setActiveEnvironment(environment);
             }
-            
+
             this.updateModalContent();
             showToast('Environment created successfully', 'success');
         } catch (error) {
@@ -254,20 +254,20 @@ export class EnvironmentManager {
             showToast('Failed to create environment', 'error');
         }
     }
-    
+
     async editEnvironment(envId) {
         const env = this.environments.find(e => e.id === envId);
         if (!env) return;
-        
+
         // Show edit modal (simplified - using prompts for now)
         const newName = prompt('Enter new name:', env.name);
         if (!newName) return;
-        
+
         const variablesJson = prompt(
             'Enter variables as JSON array:\n[{"key": "baseUrl", "value": "https://api.example.com"}]',
             JSON.stringify(env.variables || [], null, 2)
         );
-        
+
         let variables = env.variables;
         try {
             if (variablesJson) {
@@ -277,21 +277,21 @@ export class EnvironmentManager {
             showToast('Invalid JSON format', 'error');
             return;
         }
-        
+
         try {
             const updated = await StorageService.updateEnvironment(envId, {
                 ...env,
                 name: newName,
                 variables
             });
-            
+
             const index = this.environments.findIndex(e => e.id === envId);
             this.environments[index] = updated;
-            
+
             if (this.activeEnvironment?.id === envId) {
                 this.setActiveEnvironment(updated);
             }
-            
+
             this.updateModalContent();
             showToast('Environment updated successfully', 'success');
         } catch (error) {
@@ -299,18 +299,18 @@ export class EnvironmentManager {
             showToast('Failed to update environment', 'error');
         }
     }
-    
+
     async deleteEnvironment(envId) {
         if (!confirm('Are you sure you want to delete this environment?')) return;
-        
+
         try {
             await StorageService.deleteEnvironment(envId);
             this.environments = this.environments.filter(e => e.id !== envId);
-            
+
             if (this.activeEnvironment?.id === envId) {
                 this.setActiveEnvironment(null);
             }
-            
+
             this.updateModalContent();
             showToast('Environment deleted successfully', 'success');
         } catch (error) {
@@ -318,7 +318,7 @@ export class EnvironmentManager {
             showToast('Failed to delete environment', 'error');
         }
     }
-    
+
     updateModalContent() {
         const container = this.modalElement?.querySelector('#environmentsList');
         if (container) {

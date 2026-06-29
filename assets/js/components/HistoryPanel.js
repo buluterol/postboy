@@ -13,15 +13,15 @@ export class HistoryPanel {
     constructor() {
         this.history = [];
         this.modalElement = null;
-        
+
         this.init();
     }
-    
+
     async init() {
         await this.loadHistory();
         this.subscribeToEvents();
     }
-    
+
     async loadHistory() {
         try {
             this.history = await StorageService.getHistory();
@@ -30,7 +30,7 @@ export class HistoryPanel {
             this.history = [];
         }
     }
-    
+
     showModal() {
         this.modalElement = createElement(`
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="historyModal">
@@ -59,13 +59,13 @@ export class HistoryPanel {
                 </div>
             </div>
         `);
-        
+
         document.getElementById('modals').appendChild(this.modalElement);
-        
+
         // Attach event listeners
         this.attachModalEventListeners();
     }
-    
+
     renderHistoryList() {
         if (this.history.length === 0) {
             return `
@@ -77,18 +77,18 @@ export class HistoryPanel {
                 </div>
             `;
         }
-        
+
         return `
             <div class="divide-y divide-gray-200 dark:divide-gray-700">
                 ${this.history.map(entry => this.renderHistoryEntry(entry)).join('')}
             </div>
         `;
     }
-    
+
     renderHistoryEntry(entry) {
         const methodClass = METHOD_COLORS[entry.method] || 'method-get';
         const statusColor = entry.status ? getStatusCodeColor(entry.status) : 'text-gray-500';
-        
+
         return `
             <div class="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer history-entry" 
                  data-entry='${JSON.stringify(entry).replace(/'/g, "&apos;")}'>
@@ -108,25 +108,25 @@ export class HistoryPanel {
             </div>
         `;
     }
-    
+
     attachModalEventListeners() {
         // Close modal
         this.modalElement.querySelector('#closeHistoryModal').addEventListener('click', () => {
             this.closeModal();
         });
-        
+
         // Close on background click
         this.modalElement.addEventListener('click', (e) => {
             if (e.target.id === 'historyModal') {
                 this.closeModal();
             }
         });
-        
+
         // Clear history
         this.modalElement.querySelector('#clearHistoryBtn').addEventListener('click', () => {
             this.clearHistory();
         });
-        
+
         // Click on history entry
         this.modalElement.querySelectorAll('.history-entry').forEach(entry => {
             entry.addEventListener('click', (e) => {
@@ -135,17 +135,17 @@ export class HistoryPanel {
             });
         });
     }
-    
+
     closeModal() {
         if (this.modalElement) {
             this.modalElement.remove();
             this.modalElement = null;
         }
     }
-    
+
     async clearHistory() {
         if (!confirm('Are you sure you want to clear all history?')) return;
-        
+
         try {
             await StorageService.clearHistory();
             this.history = [];
@@ -156,7 +156,7 @@ export class HistoryPanel {
             showToast('Failed to clear history', 'error');
         }
     }
-    
+
     loadHistoryEntry(entry) {
         // Load the request into the request builder
         const request = {
@@ -165,16 +165,16 @@ export class HistoryPanel {
             headers: [],
             body: ''
         };
-        
+
         EventBus.emit(EVENTS.REQUEST_LOADED, request);
         this.closeModal();
     }
-    
+
     updateModalContent() {
         const container = this.modalElement?.querySelector('#historyList');
         if (container) {
             container.innerHTML = this.renderHistoryList();
-            
+
             // Re-attach entry click listeners
             container.querySelectorAll('.history-entry').forEach(entry => {
                 entry.addEventListener('click', (e) => {
@@ -184,7 +184,7 @@ export class HistoryPanel {
             });
         }
     }
-    
+
     subscribeToEvents() {
         EventBus.on(EVENTS.HISTORY_UPDATED, async () => {
             await this.loadHistory();

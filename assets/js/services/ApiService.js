@@ -16,10 +16,10 @@ class ApiService {
      */
     async sendRequest(requestData) {
         const { method, url, headers, body, auth } = requestData;
-        
+
         // Emit request sent event
         EventBus.emit(EVENTS.REQUEST_SENT, requestData);
-        
+
         try {
             const response = await fetch(API_ENDPOINTS.PROXY, {
                 method: 'POST',
@@ -34,13 +34,13 @@ class ApiService {
                     auth: auth || null
                 })
             });
-            
+
             const data = await response.json();
-            
+
             if (!response.ok || data.error) {
                 throw new Error(data.message || 'Request failed');
             }
-            
+
             // Add to history
             this.addToHistory({
                 method,
@@ -48,14 +48,14 @@ class ApiService {
                 status: data.status,
                 responseTime: data.responseTime
             });
-            
+
             // Emit response received event
             EventBus.emit(EVENTS.RESPONSE_RECEIVED, data);
-            
+
             return data;
         } catch (error) {
             console.error('API request failed:', error);
-            
+
             // Emit error response
             const errorResponse = {
                 success: false,
@@ -66,13 +66,13 @@ class ApiService {
                 body: error.message,
                 responseTime: 0
             };
-            
+
             EventBus.emit(EVENTS.RESPONSE_RECEIVED, errorResponse);
-            
+
             throw error;
         }
     }
-    
+
     /**
      * Add request to history
      * @param {Object} entry History entry

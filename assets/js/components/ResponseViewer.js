@@ -6,11 +6,11 @@
 
 import { EVENTS, RESPONSE_FORMATS } from '../utils/constants.js';
 import { EventBus } from '../services/EventBus.js';
-import { 
-    formatResponseTime, 
-    getStatusCodeColor, 
+import {
+    formatResponseTime,
+    getStatusCodeColor,
     highlightJson,
-    prettyPrintJson 
+    prettyPrintJson
 } from '../utils/helpers.js';
 
 export class ResponseViewer {
@@ -18,11 +18,11 @@ export class ResponseViewer {
         this.container = container;
         this.currentResponse = null;
         this.activeFormat = RESPONSE_FORMATS.JSON;
-        
+
         this.subscribeToEvents();
         this.renderEmpty();
     }
-    
+
     renderEmpty() {
         this.container.innerHTML = `
             <div class="text-center text-gray-500 dark:text-gray-400 py-16">
@@ -33,15 +33,15 @@ export class ResponseViewer {
             </div>
         `;
     }
-    
+
     render() {
         if (!this.currentResponse) {
             this.renderEmpty();
             return;
         }
-        
+
         const { status, statusText, responseTime, headers, body, error } = this.currentResponse;
-        
+
         this.container.innerHTML = `
             <!-- Status Bar -->
             <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
@@ -106,15 +106,15 @@ export class ResponseViewer {
                 </div>
             </div>
         `;
-        
+
         this.attachEventListeners();
     }
-    
+
     renderBody() {
         if (!this.currentResponse) return '';
-        
+
         const { body, error, message, isJson } = this.currentResponse;
-        
+
         if (error) {
             return `
                 <div class="text-red-600 dark:text-red-400">
@@ -123,11 +123,11 @@ export class ResponseViewer {
                 </div>
             `;
         }
-        
+
         if (!body) {
             return '<p class="text-gray-500 dark:text-gray-400 text-sm">Empty response</p>';
         }
-        
+
         // Format based on active format
         if (this.activeFormat === RESPONSE_FORMATS.JSON && isJson) {
             try {
@@ -138,7 +138,7 @@ export class ResponseViewer {
                 return `<pre class="code-editor text-sm">${this.escapeHtml(body)}</pre>`;
             }
         }
-        
+
         if (this.activeFormat === RESPONSE_FORMATS.HTML) {
             // Check if body looks like HTML
             if (body.trim().startsWith('<')) {
@@ -146,23 +146,23 @@ export class ResponseViewer {
             }
             return `<p class="text-gray-500 text-sm">Not HTML content</p>`;
         }
-        
+
         // Raw format
         return `<pre class="code-editor text-sm whitespace-pre-wrap">${this.escapeHtml(body)}</pre>`;
     }
-    
+
     renderHeaders() {
         if (!this.currentResponse || !this.currentResponse.headers) {
             return '<p class="text-gray-500 dark:text-gray-400 text-sm">No headers</p>';
         }
-        
+
         const headers = this.currentResponse.headers;
         const entries = Object.entries(headers);
-        
+
         if (entries.length === 0) {
             return '<p class="text-gray-500 dark:text-gray-400 text-sm">No headers</p>';
         }
-        
+
         return `
             <table class="w-full text-sm">
                 <thead class="border-b border-gray-200 dark:border-gray-700">
@@ -182,7 +182,7 @@ export class ResponseViewer {
             </table>
         `;
     }
-    
+
     attachEventListeners() {
         // Tab switching
         this.container.querySelectorAll('[data-tab]').forEach(tab => {
@@ -191,7 +191,7 @@ export class ResponseViewer {
                 this.switchTab(tabName);
             });
         });
-        
+
         // Format switching
         this.container.querySelectorAll('[data-format]').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -199,7 +199,7 @@ export class ResponseViewer {
                 this.render();
             });
         });
-        
+
         // Copy response
         const copyBtn = this.container.querySelector('#copyResponseBtn');
         if (copyBtn) {
@@ -208,7 +208,7 @@ export class ResponseViewer {
             });
         }
     }
-    
+
     switchTab(tabName) {
         // Update tab buttons
         this.container.querySelectorAll('[data-tab]').forEach(tab => {
@@ -218,11 +218,11 @@ export class ResponseViewer {
                 tab.classList.remove('tab-active');
             }
         });
-        
+
         // Update tab content
         const bodyTab = this.container.querySelector('#responseBodyTab');
         const headersTab = this.container.querySelector('#responseHeadersTab');
-        
+
         if (tabName === 'body') {
             bodyTab.classList.remove('hidden');
             headersTab.classList.add('hidden');
@@ -231,12 +231,12 @@ export class ResponseViewer {
             headersTab.classList.remove('hidden');
         }
     }
-    
+
     copyResponse() {
         if (!this.currentResponse || !this.currentResponse.body) return;
-        
+
         const body = this.currentResponse.body;
-        
+
         navigator.clipboard.writeText(body).then(() => {
             // Show success message
             import('../utils/helpers.js').then(({ showToast }) => {
@@ -246,7 +246,7 @@ export class ResponseViewer {
             console.error('Failed to copy:', err);
         });
     }
-    
+
     subscribeToEvents() {
         EventBus.on(EVENTS.RESPONSE_RECEIVED, (response) => {
             this.currentResponse = response;
@@ -254,7 +254,7 @@ export class ResponseViewer {
             this.render();
         });
     }
-    
+
     escapeHtml(str) {
         const div = document.createElement('div');
         div.textContent = str;

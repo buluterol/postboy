@@ -32,21 +32,25 @@ Lightweight Postman alternative - Modern API testing tool built with PHP backend
 1. Clone or download this repository
 
 2. Install Tailwind CSS:
+
 ```bash
 npm install
 ```
 
 3. Build CSS:
+
 ```bash
 npm run build:css
 ```
 
 4. Create data directory:
+
 ```bash
 mkdir -p data
 ```
 
 5. Start PHP development server:
+
 ```bash
 npm run dev
 # or
@@ -54,6 +58,7 @@ php -S localhost:8000
 ```
 
 6. Open your browser and navigate to:
+
 ```
 http://localhost:8000
 ```
@@ -115,11 +120,13 @@ postboy/
 ## Development
 
 ### Watch Tailwind CSS changes:
+
 ```bash
 npm run watch:css
 ```
 
 ### Start development server:
+
 ```bash
 npm run dev
 ```
@@ -127,21 +134,25 @@ npm run dev
 ## API Endpoints
 
 ### Collections
+
 - `GET /api/collections.php` - List all collections
 - `POST /api/collections.php` - Create new collection
 - `PUT /api/collections.php?id={id}` - Update collection
 - `DELETE /api/collections.php?id={id}` - Delete collection
 
 ### Proxy
+
 - `POST /api/proxy.php` - Proxy HTTP requests (all methods)
 
 ### Environments
+
 - `GET /api/environments.php` - List environments
 - `POST /api/environments.php` - Create environment
 - `PUT /api/environments.php?id={id}` - Update environment
 - `DELETE /api/environments.php?id={id}` - Delete environment
 
 ### History
+
 - `GET /api/history.php` - List request history
 - `POST /api/history.php` - Add to history
 - `DELETE /api/history.php` - Clear history
@@ -157,6 +168,7 @@ MIT License - feel free to use this project for personal or commercial purposes.
 ## Roadmap
 
 Future features planned:
+
 - Import/Export Postman collections
 - Code generation (cURL, JavaScript, etc.)
 - Pre-request scripts and tests

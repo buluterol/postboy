@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Postboy Configuration
  * 
@@ -57,15 +58,16 @@ foreach ($dataFiles as $filename => $defaultContent) {
  * @param string $filename Filename in data directory
  * @return array Decoded JSON data
  */
-function readJsonFile($filename) {
+function readJsonFile($filename)
+{
     $filepath = DATA_DIR . '/' . $filename;
     if (!file_exists($filepath)) {
         return [];
     }
-    
+
     $content = file_get_contents($filepath);
     $data = json_decode($content, true);
-    
+
     return $data ?: [];
 }
 
@@ -76,10 +78,11 @@ function readJsonFile($filename) {
  * @param array $data Data to write
  * @return bool Success status
  */
-function writeJsonFile($filename, $data) {
+function writeJsonFile($filename, $data)
+{
     $filepath = DATA_DIR . '/' . $filename;
     $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-    
+
     return file_put_contents($filepath, $json) !== false;
 }
 
@@ -89,7 +92,8 @@ function writeJsonFile($filename, $data) {
  * @param mixed $data Response data
  * @param int $statusCode HTTP status code
  */
-function sendJson($data, $statusCode = 200) {
+function sendJson($data, $statusCode = 200)
+{
     http_response_code($statusCode);
     echo json_encode($data, JSON_UNESCAPED_UNICODE);
     exit();
@@ -101,7 +105,8 @@ function sendJson($data, $statusCode = 200) {
  * @param string $message Error message
  * @param int $statusCode HTTP status code
  */
-function sendError($message, $statusCode = 400) {
+function sendError($message, $statusCode = 400)
+{
     sendJson([
         'error' => true,
         'message' => $message
@@ -113,10 +118,11 @@ function sendError($message, $statusCode = 400) {
  * 
  * @return array Request body data
  */
-function getRequestBody() {
+function getRequestBody()
+{
     $body = file_get_contents('php://input');
     $data = json_decode($body, true);
-    
+
     return $data ?: [];
 }
 
@@ -125,7 +131,8 @@ function getRequestBody() {
  * 
  * @return string Unique identifier
  */
-function generateId() {
+function generateId()
+{
     return uniqid('', true);
 }
 
@@ -136,7 +143,8 @@ function generateId() {
  * @param array $requiredFields Required field names
  * @return bool|string True if valid, error message if invalid
  */
-function validateRequired($data, $requiredFields) {
+function validateRequired($data, $requiredFields)
+{
     foreach ($requiredFields as $field) {
         if (!isset($data[$field]) || $data[$field] === '') {
             return "Missing required field: $field";

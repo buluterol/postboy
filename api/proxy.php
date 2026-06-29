@@ -1,4 +1,5 @@
 <?php
+
 /**
  * HTTP Proxy API
  * 
@@ -64,14 +65,14 @@ if ($auth && isset($auth['type'])) {
                 $headers['Authorization'] = 'Bearer ' . $auth['token'];
             }
             break;
-        
+
         case 'basic':
             if (isset($auth['username']) && isset($auth['password'])) {
                 $credentials = base64_encode($auth['username'] . ':' . $auth['password']);
                 $headers['Authorization'] = 'Basic ' . $credentials;
             }
             break;
-        
+
         case 'apikey':
             if (isset($auth['key']) && isset($auth['value'])) {
                 $addTo = $auth['addTo'] ?? 'header';
@@ -181,7 +182,8 @@ sendJson($result);
  * @param int $code HTTP status code
  * @return string Status text
  */
-function getHttpStatusText($code) {
+function getHttpStatusText($code)
+{
     $statusTexts = [
         200 => 'OK',
         201 => 'Created',
@@ -202,6 +204,6 @@ function getHttpStatusText($code) {
         503 => 'Service Unavailable',
         504 => 'Gateway Timeout'
     ];
-    
+
     return $statusTexts[$code] ?? 'Unknown Status';
 }

@@ -21,24 +21,24 @@ export function formatDate(date) {
     const d = new Date(date);
     const now = new Date();
     const diff = now - d;
-    
+
     // Less than 1 minute
     if (diff < 60000) {
         return 'Just now';
     }
-    
+
     // Less than 1 hour
     if (diff < 3600000) {
         const minutes = Math.floor(diff / 60000);
         return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
     }
-    
+
     // Less than 24 hours
     if (diff < 86400000) {
         const hours = Math.floor(diff / 3600000);
         return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
     }
-    
+
     // More than 24 hours
     return d.toLocaleDateString('tr-TR', {
         day: 'numeric',
@@ -86,7 +86,7 @@ export function getStatusCodeColor(statusCode) {
  */
 export function interpolateVariables(str, variables = {}) {
     if (!str) return str;
-    
+
     return str.replace(/\{\{(\w+)\}\}/g, (match, key) => {
         return variables[key] !== undefined ? variables[key] : match;
     });
@@ -147,7 +147,7 @@ export function isValidJson(str) {
  */
 export function highlightJson(json) {
     if (!json) return '';
-    
+
     try {
         const obj = JSON.parse(json);
         json = JSON.stringify(obj, null, 2);
@@ -155,9 +155,9 @@ export function highlightJson(json) {
         // Not valid JSON, return as is
         return escapeHtml(json);
     }
-    
+
     json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    
+
     return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
         let cls = 'json-number';
         if (/^"/.test(match)) {
@@ -213,25 +213,25 @@ export function createElement(html) {
 export function showToast(message, type = 'info', duration = 3000) {
     const container = document.getElementById('toastContainer');
     if (!container) return;
-    
+
     const bgColors = {
         success: 'bg-green-500',
         error: 'bg-red-500',
         warning: 'bg-yellow-500',
         info: 'bg-blue-500'
     };
-    
+
     const toast = createElement(`
         <div class="toast ${bgColors[type]} text-white toast-enter">
             ${escapeHtml(message)}
         </div>
     `);
-    
+
     container.appendChild(toast);
-    
+
     // Trigger animation
     setTimeout(() => toast.classList.remove('toast-enter'), 10);
-    
+
     // Remove after duration
     setTimeout(() => {
         toast.classList.add('toast-leave');

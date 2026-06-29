@@ -8,7 +8,7 @@ class EventBusClass {
     constructor() {
         this.events = {};
     }
-    
+
     /**
      * Subscribe to an event
      * @param {string} event Event name
@@ -19,13 +19,13 @@ class EventBusClass {
         if (!this.events[event]) {
             this.events[event] = [];
         }
-        
+
         this.events[event].push(callback);
-        
+
         // Return unsubscribe function
         return () => this.off(event, callback);
     }
-    
+
     /**
      * Unsubscribe from an event
      * @param {string} event Event name
@@ -33,10 +33,10 @@ class EventBusClass {
      */
     off(event, callback) {
         if (!this.events[event]) return;
-        
+
         this.events[event] = this.events[event].filter(cb => cb !== callback);
     }
-    
+
     /**
      * Emit an event
      * @param {string} event Event name
@@ -44,7 +44,7 @@ class EventBusClass {
      */
     emit(event, data) {
         if (!this.events[event]) return;
-        
+
         this.events[event].forEach(callback => {
             try {
                 callback(data);
@@ -53,7 +53,7 @@ class EventBusClass {
             }
         });
     }
-    
+
     /**
      * Subscribe to an event once
      * @param {string} event Event name
@@ -64,7 +64,7 @@ class EventBusClass {
             callback(data);
             this.off(event, onceCallback);
         };
-        
+
         this.on(event, onceCallback);
     }
 }

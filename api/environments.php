@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Environments API
  * 
@@ -19,19 +20,19 @@ switch ($method) {
     case 'GET':
         handleGet();
         break;
-    
+
     case 'POST':
         handlePost();
         break;
-    
+
     case 'PUT':
         handlePut();
         break;
-    
+
     case 'DELETE':
         handleDelete();
         break;
-    
+
     default:
         sendError('Method not allowed', 405);
 }
@@ -39,7 +40,8 @@ switch ($method) {
 /**
  * GET - List all environments
  */
-function handleGet() {
+function handleGet()
+{
     $environments = readJsonFile('environments.json');
     sendJson([
         'success' => true,
@@ -50,15 +52,16 @@ function handleGet() {
 /**
  * POST - Create new environment
  */
-function handlePost() {
+function handlePost()
+{
     $data = getRequestBody();
-    
+
     // Validate required fields
     $validation = validateRequired($data, ['name']);
     if ($validation !== true) {
         sendError($validation);
     }
-    
+
     // Create new environment
     $environment = [
         'id' => generateId(),
@@ -68,7 +71,7 @@ function handlePost() {
         'createdAt' => date('c'),
         'updatedAt' => date('c')
     ];
-    
+
     // If this is set as active, deactivate others
     $environments = readJsonFile('environments.json');
     if ($environment['isActive']) {
@@ -76,9 +79,9 @@ function handlePost() {
             $env['isActive'] = false;
         }
     }
-    
+
     $environments[] = $environment;
-    
+
     if (writeJsonFile('environments.json', $environments)) {
         sendJson([
             'success' => true,
@@ -93,24 +96,25 @@ function handlePost() {
 /**
  * PUT - Update environment
  */
-function handlePut() {
+function handlePut()
+{
     $id = $_GET['id'] ?? null;
-    
+
     if (!$id) {
         sendError('Environment ID is required');
     }
-    
+
     $data = getRequestBody();
     $environments = readJsonFile('environments.json');
     $found = false;
-    
+
     // If setting this as active, deactivate others
     if (isset($data['isActive']) && $data['isActive']) {
         foreach ($environments as &$env) {
             $env['isActive'] = false;
         }
     }
-    
+
     // Find and update environment
     foreach ($environments as &$environment) {
         if ($environment['id'] === $id) {
@@ -124,11 +128,11 @@ function handlePut() {
             break;
         }
     }
-    
+
     if (!$found) {
         sendError('Environment not found', 404);
     }
-    
+
     if (writeJsonFile('environments.json', $environments)) {
         sendJson([
             'success' => true,
@@ -143,28 +147,29 @@ function handlePut() {
 /**
  * DELETE - Delete environment
  */
-function handleDelete() {
+function handleDelete()
+{
     $id = $_GET['id'] ?? null;
-    
+
     if (!$id) {
         sendError('Environment ID is required');
     }
-    
+
     $environments = readJsonFile('environments.json');
     $originalCount = count($environments);
-    
+
     // Filter out the environment to delete
-    $environments = array_filter($environments, function($environment) use ($id) {
+    $environments = array_filter($environments, function ($environment) use ($id) {
         return $environment['id'] !== $id;
     });
-    
+
     // Re-index array
     $environments = array_values($environments);
-    
+
     if (count($environments) === $originalCount) {
         sendError('Environment not found', 404);
     }
-    
+
     if (writeJsonFile('environments.json', $environments)) {
         sendJson([
             'success' => true,

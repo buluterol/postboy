@@ -22,27 +22,27 @@ class StorageService {
                     ...options.headers
                 }
             });
-            
+
             const data = await response.json();
-            
+
             if (!response.ok) {
                 throw new Error(data.message || 'Request failed');
             }
-            
+
             return data;
         } catch (error) {
             console.error('Storage request failed:', error);
             throw error;
         }
     }
-    
+
     // Collections
-    
+
     async getCollections() {
         const response = await this.request(API_ENDPOINTS.COLLECTIONS);
         return response.data || [];
     }
-    
+
     async createCollection(collection) {
         const response = await this.request(API_ENDPOINTS.COLLECTIONS, {
             method: 'POST',
@@ -50,7 +50,7 @@ class StorageService {
         });
         return response.data;
     }
-    
+
     async updateCollection(id, collection) {
         const response = await this.request(`${API_ENDPOINTS.COLLECTIONS}?id=${id}`, {
             method: 'PUT',
@@ -58,20 +58,20 @@ class StorageService {
         });
         return response.data;
     }
-    
+
     async deleteCollection(id) {
         await this.request(`${API_ENDPOINTS.COLLECTIONS}?id=${id}`, {
             method: 'DELETE'
         });
     }
-    
+
     // Environments
-    
+
     async getEnvironments() {
         const response = await this.request(API_ENDPOINTS.ENVIRONMENTS);
         return response.data || [];
     }
-    
+
     async createEnvironment(environment) {
         const response = await this.request(API_ENDPOINTS.ENVIRONMENTS, {
             method: 'POST',
@@ -79,7 +79,7 @@ class StorageService {
         });
         return response.data;
     }
-    
+
     async updateEnvironment(id, environment) {
         const response = await this.request(`${API_ENDPOINTS.ENVIRONMENTS}?id=${id}`, {
             method: 'PUT',
@@ -87,20 +87,20 @@ class StorageService {
         });
         return response.data;
     }
-    
+
     async deleteEnvironment(id) {
         await this.request(`${API_ENDPOINTS.ENVIRONMENTS}?id=${id}`, {
             method: 'DELETE'
         });
     }
-    
+
     // History
-    
+
     async getHistory() {
         const response = await this.request(API_ENDPOINTS.HISTORY);
         return response.data || [];
     }
-    
+
     async addToHistory(entry) {
         const response = await this.request(API_ENDPOINTS.HISTORY, {
             method: 'POST',
@@ -108,13 +108,13 @@ class StorageService {
         });
         return response.data;
     }
-    
+
     async deleteHistoryItem(id) {
         await this.request(`${API_ENDPOINTS.HISTORY}?id=${id}`, {
             method: 'DELETE'
         });
     }
-    
+
     async clearHistory() {
         await this.request(API_ENDPOINTS.HISTORY, {
             method: 'DELETE'
