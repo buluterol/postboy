@@ -18,12 +18,12 @@ export class RequestBuilder {
         this.activeAuthType = AUTH_TYPES.NONE;
         this.currentEnvironment = {};
         this.rateLimitTester = new RateLimitTester(this);
-        
+
         this.render();
         this.attachEventListeners();
         this.subscribeToEvents();
     }
-    
+
     getDefaultRequest() {
         return {
             method: 'GET',
@@ -35,7 +35,7 @@ export class RequestBuilder {
             auth: { type: AUTH_TYPES.NONE }
         };
     }
-    
+
     render() {
         this.container.innerHTML = `
             <!-- Method and URL -->
@@ -148,17 +148,17 @@ export class RequestBuilder {
                 </div>
             </div>
         `;
-        
+
         this.renderHeaders();
         this.renderAuthFields();
         this.renderParams();
         this.renderBodyEditor();
     }
-    
+
     renderHeaders() {
         const container = this.container.querySelector('#headersList');
         if (!container) return;
-        
+
         container.innerHTML = this.currentRequest.headers.map((header, index) => `
             <div class="flex gap-2 items-center">
                 <input type="checkbox" ${header.enabled ? 'checked' : ''} 
@@ -171,18 +171,18 @@ export class RequestBuilder {
             </div>
         `).join('');
     }
-    
+
     renderParams() {
         const container = this.container.querySelector('#paramsList');
         if (!container) return;
-        
+
         const params = this.currentRequest.queryParams || [];
-        
+
         if (params.length === 0) {
             container.innerHTML = '<p class="text-sm text-gray-500">No query parameters</p>';
             return;
         }
-        
+
         container.innerHTML = params.map((param, index) => `
             <div class="flex gap-2 items-center">
                 <input type="checkbox" ${param.enabled ? 'checked' : ''} 
@@ -195,13 +195,13 @@ export class RequestBuilder {
             </div>
         `).join('');
     }
-    
+
     renderAuthFields() {
         const container = this.container.querySelector('#authFields');
         if (!container) return;
-        
+
         const auth = this.currentRequest.auth || { type: AUTH_TYPES.NONE };
-        
+
         switch (auth.type) {
             case AUTH_TYPES.BEARER:
                 container.innerHTML = `
@@ -212,7 +212,7 @@ export class RequestBuilder {
                     </div>
                 `;
                 break;
-            
+
             case AUTH_TYPES.BASIC:
                 container.innerHTML = `
                     <div class="space-y-3">
@@ -229,7 +229,7 @@ export class RequestBuilder {
                     </div>
                 `;
                 break;
-            
+
             case AUTH_TYPES.API_KEY:
                 container.innerHTML = `
                     <div class="space-y-3">
@@ -253,16 +253,16 @@ export class RequestBuilder {
                     </div>
                 `;
                 break;
-            
+
             default:
                 container.innerHTML = '<p class="text-sm text-gray-500">No authentication</p>';
         }
     }
-    
+
     renderBodyEditor() {
         const container = this.container.querySelector('#bodyEditor');
         if (!container) return;
-        
+
         if (this.activeBodyType === BODY_TYPES.FORM) {
             // Render Form Data table
             container.innerHTML = `
@@ -285,7 +285,7 @@ export class RequestBuilder {
                     placeholder="${this.activeBodyType === BODY_TYPES.JSON ? 'Enter JSON body...' : 'Enter raw body...'}"
                 >${this.currentRequest.body}</textarea>
             `;
-            
+
             // Attach textarea event listener
             const textarea = container.querySelector('#requestBody');
             if (textarea) {
@@ -295,13 +295,13 @@ export class RequestBuilder {
             }
         }
     }
-    
+
     renderFormData() {
         const container = this.container.querySelector('#formDataList');
         if (!container) return;
-        
+
         const formData = this.currentRequest.formData || [];
-        
+
         container.innerHTML = formData.map((field, index) => `
             <div class="flex gap-2 items-center">
                 <input type="checkbox" ${field.enabled ? 'checked' : ''} 
@@ -314,18 +314,18 @@ export class RequestBuilder {
             </div>
         `).join('');
     }
-    
+
     attachEventListeners() {
         // Send button
         this.container.querySelector('#sendRequestBtn').addEventListener('click', () => {
             this.sendRequest();
         });
-        
+
         // Rate Limit Test button
         this.container.querySelector('#rateLimitTestBtn').addEventListener('click', () => {
             this.rateLimitTester.showModal();
         });
-        
+
         // Keyboard shortcut (Ctrl/Cmd + Enter)
         document.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -333,16 +333,16 @@ export class RequestBuilder {
                 this.sendRequest();
             }
         });
-        
+
         // Method and URL changes
         this.container.querySelector('#requestMethod').addEventListener('change', (e) => {
             this.currentRequest.method = e.target.value;
         });
-        
+
         this.container.querySelector('#requestUrl').addEventListener('input', (e) => {
             this.currentRequest.url = e.target.value;
         });
-        
+
         // Tab switching
         this.container.querySelectorAll('[data-tab]').forEach(tab => {
             tab.addEventListener('click', (e) => {
@@ -350,13 +350,13 @@ export class RequestBuilder {
                 this.switchTab(tabName);
             });
         });
-        
+
         // Headers
         this.container.querySelector('#addHeaderBtn').addEventListener('click', () => {
             this.currentRequest.headers.push({ key: '', value: '', enabled: true });
             this.renderHeaders();
         });
-        
+
         this.container.addEventListener('click', (e) => {
             if (e.target.classList.contains('remove-header')) {
                 const index = parseInt(e.target.dataset.index);
@@ -364,7 +364,7 @@ export class RequestBuilder {
                 this.renderHeaders();
             }
         });
-        
+
         this.container.addEventListener('input', (e) => {
             if (e.target.classList.contains('header-key')) {
                 const index = parseInt(e.target.dataset.index);
@@ -374,14 +374,14 @@ export class RequestBuilder {
                 this.currentRequest.headers[index].value = e.target.value;
             }
         });
-        
+
         this.container.addEventListener('change', (e) => {
             if (e.target.classList.contains('header-enabled')) {
                 const index = parseInt(e.target.dataset.index);
                 this.currentRequest.headers[index].enabled = e.target.checked;
             }
         });
-        
+
         // Body type
         this.container.querySelectorAll('input[name="bodyType"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
@@ -389,7 +389,7 @@ export class RequestBuilder {
                 this.renderBodyEditor();
             });
         });
-        
+
         // Auth type
         const authTypeSelect = this.container.querySelector('#authType');
         if (authTypeSelect) {
@@ -399,7 +399,7 @@ export class RequestBuilder {
                 this.renderAuthFields();
             });
         }
-        
+
         // Form Data
         this.container.addEventListener('click', (e) => {
             if (e.target.id === 'addFormDataBtn') {
@@ -414,7 +414,7 @@ export class RequestBuilder {
                 this.renderFormData();
             }
         });
-        
+
         this.container.addEventListener('input', (e) => {
             if (e.target.classList.contains('formdata-key')) {
                 const index = parseInt(e.target.dataset.index);
@@ -428,7 +428,7 @@ export class RequestBuilder {
                 }
             }
         });
-        
+
         this.container.addEventListener('change', (e) => {
             if (e.target.classList.contains('formdata-enabled')) {
                 const index = parseInt(e.target.dataset.index);
@@ -437,7 +437,7 @@ export class RequestBuilder {
                 }
             }
         });
-        
+
         // Query params
         this.container.querySelector('#addParamBtn').addEventListener('click', () => {
             if (!this.currentRequest.queryParams) {
@@ -446,7 +446,7 @@ export class RequestBuilder {
             this.currentRequest.queryParams.push({ key: '', value: '', enabled: true });
             this.renderParams();
         });
-        
+
         this.container.addEventListener('click', (e) => {
             if (e.target.classList.contains('remove-param')) {
                 const index = parseInt(e.target.dataset.index);
@@ -455,7 +455,7 @@ export class RequestBuilder {
             }
         });
     }
-    
+
     switchTab(tabName) {
         // Update tab buttons
         this.container.querySelectorAll('[data-tab]').forEach(tab => {
@@ -465,7 +465,7 @@ export class RequestBuilder {
                 tab.classList.remove('tab-active');
             }
         });
-        
+
         // Update tab content
         const tabs = {
             headers: this.container.querySelector('#headersTab'),
@@ -473,7 +473,7 @@ export class RequestBuilder {
             auth: this.container.querySelector('#authTab'),
             params: this.container.querySelector('#paramsTab')
         };
-        
+
         Object.keys(tabs).forEach(key => {
             if (key === tabName) {
                 tabs[key].classList.remove('hidden');
@@ -482,27 +482,27 @@ export class RequestBuilder {
             }
         });
     }
-    
+
     async sendRequest() {
         const btn = this.container.querySelector('#sendRequestBtn');
         const btnText = this.container.querySelector('#sendBtnText');
         const btnSpinner = this.container.querySelector('#sendBtnSpinner');
-        
+
         // Validate URL
         if (!this.currentRequest.url) {
             alert('Please enter a URL');
             return;
         }
-        
+
         // Show loading state
         btn.disabled = true;
         btnText.classList.add('hidden');
         btnSpinner.classList.remove('hidden');
-        
+
         try {
             // Prepare request data
             const requestData = this.prepareRequestData();
-            
+
             // Send request
             await ApiService.sendRequest(requestData);
         } catch (error) {
@@ -514,11 +514,11 @@ export class RequestBuilder {
             btnSpinner.classList.add('hidden');
         }
     }
-    
+
     prepareRequestData() {
         // Interpolate environment variables in URL
         let url = interpolateVariables(this.currentRequest.url, this.currentEnvironment);
-        
+
         // Add query parameters
         if (this.currentRequest.queryParams && this.currentRequest.queryParams.length > 0) {
             const enabledParams = this.currentRequest.queryParams.filter(p => p.enabled && p.key);
@@ -530,7 +530,7 @@ export class RequestBuilder {
                 url += separator + queryString;
             }
         }
-        
+
         // Prepare headers
         const headers = {};
         this.currentRequest.headers
@@ -538,7 +538,7 @@ export class RequestBuilder {
             .forEach(h => {
                 headers[h.key] = interpolateVariables(h.value, this.currentEnvironment);
             });
-        
+
         // Prepare body
         let body = null;
         if (this.activeBodyType === BODY_TYPES.FORM && this.currentRequest.formData) {
@@ -552,7 +552,7 @@ export class RequestBuilder {
                         return `${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
                     })
                     .join('&');
-                
+
                 // Set content type for form data
                 if (!headers['Content-Type']) {
                     headers['Content-Type'] = 'application/x-www-form-urlencoded';
@@ -560,18 +560,18 @@ export class RequestBuilder {
             }
         } else if (this.activeBodyType !== BODY_TYPES.NONE && this.currentRequest.body) {
             body = interpolateVariables(this.currentRequest.body, this.currentEnvironment);
-            
+
             // Set content type for JSON
             if (this.activeBodyType === BODY_TYPES.JSON && !headers['Content-Type']) {
                 headers['Content-Type'] = 'application/json';
             }
         }
-        
+
         // Prepare auth
         let auth = null;
         if (this.currentRequest.auth && this.currentRequest.auth.type !== AUTH_TYPES.NONE) {
             auth = { ...this.currentRequest.auth };
-            
+
             // Interpolate auth values
             if (auth.token) auth.token = interpolateVariables(auth.token, this.currentEnvironment);
             if (auth.username) auth.username = interpolateVariables(auth.username, this.currentEnvironment);
@@ -579,7 +579,7 @@ export class RequestBuilder {
             if (auth.key) auth.key = interpolateVariables(auth.key, this.currentEnvironment);
             if (auth.value) auth.value = interpolateVariables(auth.value, this.currentEnvironment);
         }
-        
+
         return {
             method: this.currentRequest.method,
             url,
@@ -588,7 +588,7 @@ export class RequestBuilder {
             auth
         };
     }
-    
+
     subscribeToEvents() {
         EventBus.on(EVENTS.REQUEST_LOADED, (request) => {
             this.currentRequest = request;
@@ -597,16 +597,16 @@ export class RequestBuilder {
             this.render();
             this.attachEventListeners();
         });
-        
+
         EventBus.on(EVENTS.ENVIRONMENT_CHANGED, (environment) => {
             this.currentEnvironment = environment;
         });
     }
-    
+
     getCurrentRequest() {
         // Update auth fields before returning
         const authType = this.container.querySelector('#authType')?.value || AUTH_TYPES.NONE;
-        
+
         if (authType === AUTH_TYPES.BEARER) {
             this.currentRequest.auth = {
                 type: authType,
@@ -628,9 +628,9 @@ export class RequestBuilder {
         } else {
             this.currentRequest.auth = { type: AUTH_TYPES.NONE };
         }
-        
+
         this.currentRequest.bodyType = this.activeBodyType;
-        
+
         return this.currentRequest;
     }
 }

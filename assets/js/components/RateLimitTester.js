@@ -21,7 +21,7 @@ export class RateLimitTester {
             responseTimes: []
         };
     }
-    
+
     showModal() {
         this.modalElement = createElement(`
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="rateLimitModal">
@@ -163,18 +163,18 @@ export class RateLimitTester {
                 </div>
             </div>
         `);
-        
+
         document.getElementById('modals').appendChild(this.modalElement);
         this.attachEventListeners();
     }
-    
+
     attachEventListeners() {
         // Close modal
         this.modalElement.querySelector('#closeRateLimitModal').addEventListener('click', () => {
             this.stop();
             this.closeModal();
         });
-        
+
         // Close on background click
         this.modalElement.addEventListener('click', (e) => {
             if (e.target.id === 'rateLimitModal') {
@@ -182,7 +182,7 @@ export class RateLimitTester {
                 this.closeModal();
             }
         });
-        
+
         // Start/Stop button
         const startBtn = this.modalElement.querySelector('#startTestBtn');
         startBtn.addEventListener('click', () => {
@@ -192,22 +192,22 @@ export class RateLimitTester {
                 this.start();
             }
         });
-        
+
         // Reset stats button
         this.modalElement.querySelector('#resetStatsBtn').addEventListener('click', () => {
             this.resetStats();
         });
     }
-    
+
     start() {
         const intervalInput = this.modalElement.querySelector('#requestInterval');
         const interval = parseInt(intervalInput.value) || 1000;
-        
+
         if (interval < 10) {
             alert('Interval must be at least 10ms');
             return;
         }
-        
+
         // Update button
         const startBtn = this.modalElement.querySelector('#startTestBtn');
         startBtn.innerHTML = `
@@ -219,41 +219,41 @@ export class RateLimitTester {
         `;
         startBtn.classList.remove('btn-primary');
         startBtn.classList.add('btn-danger');
-        
+
         // Disable interval input
         intervalInput.disabled = true;
-        
+
         // Start stats
         this.isRunning = true;
         this.stats.startTime = Date.now();
-        
+
         // Start sending requests
         this.sendRequest(); // Send first request immediately
         this.intervalId = setInterval(() => {
             this.sendRequest();
         }, interval);
-        
+
         // Update elapsed time display
         this.elapsedTimeInterval = setInterval(() => {
             this.updateElapsedTime();
         }, 100);
     }
-    
+
     stop() {
         if (!this.isRunning) return;
-        
+
         this.isRunning = false;
-        
+
         if (this.intervalId) {
             clearInterval(this.intervalId);
             this.intervalId = null;
         }
-        
+
         if (this.elapsedTimeInterval) {
             clearInterval(this.elapsedTimeInterval);
             this.elapsedTimeInterval = null;
         }
-        
+
         // Update button
         const startBtn = this.modalElement?.querySelector('#startTestBtn');
         if (startBtn) {
@@ -267,21 +267,21 @@ export class RateLimitTester {
             startBtn.classList.remove('btn-danger');
             startBtn.classList.add('btn-primary');
         }
-        
+
         // Enable interval input
         const intervalInput = this.modalElement?.querySelector('#requestInterval');
         if (intervalInput) {
             intervalInput.disabled = false;
         }
     }
-    
+
     async sendRequest() {
         const startTime = Date.now();
-        
+
         try {
             // Get request data from request builder
             const requestData = this.requestBuilder.prepareRequestData();
-            
+
             // Send request (don't wait for response to update UI)
             ApiService.sendRequest(requestData)
                 .then((response) => {
@@ -294,54 +294,54 @@ export class RateLimitTester {
                     this.stats.failedRequests++;
                     this.updateStats();
                 });
-            
+
             this.stats.totalRequests++;
             this.updateStats();
-            
+
         } catch (error) {
             console.error('Failed to send request:', error);
             this.stats.failedRequests++;
             this.updateStats();
         }
     }
-    
+
     updateStats() {
         if (!this.modalElement) return;
-        
+
         // Update counters
         this.modalElement.querySelector('#totalRequests').textContent = this.stats.totalRequests;
         this.modalElement.querySelector('#successfulRequests').textContent = this.stats.successfulRequests;
         this.modalElement.querySelector('#failedRequests').textContent = this.stats.failedRequests;
-        
+
         // Calculate requests per second
         const elapsedSeconds = (Date.now() - this.stats.startTime) / 1000;
         const reqPerSecond = elapsedSeconds > 0 ? (this.stats.totalRequests / elapsedSeconds).toFixed(2) : 0;
         this.modalElement.querySelector('#requestsPerSecond').textContent = reqPerSecond;
-        
+
         // Calculate average response time
         if (this.stats.responseTimes.length > 0) {
             const avgTime = this.stats.responseTimes.reduce((a, b) => a + b, 0) / this.stats.responseTimes.length;
             this.modalElement.querySelector('#avgResponseTime').textContent = Math.round(avgTime) + 'ms';
         }
-        
+
         // Calculate success rate
-        const successRate = this.stats.totalRequests > 0 
+        const successRate = this.stats.totalRequests > 0
             ? ((this.stats.successfulRequests / this.stats.totalRequests) * 100).toFixed(1)
             : 0;
         this.modalElement.querySelector('#successRate').textContent = successRate + '%';
         this.modalElement.querySelector('#successRateBar').style.width = successRate + '%';
     }
-    
+
     updateElapsedTime() {
         if (!this.modalElement || !this.stats.startTime) return;
-        
+
         const elapsed = (Date.now() - this.stats.startTime) / 1000;
         this.modalElement.querySelector('#elapsedTime').textContent = elapsed.toFixed(1) + 's';
     }
-    
+
     resetStats() {
         this.stop();
-        
+
         this.stats = {
             totalRequests: 0,
             successfulRequests: 0,
@@ -349,7 +349,7 @@ export class RateLimitTester {
             startTime: null,
             responseTimes: []
         };
-        
+
         if (this.modalElement) {
             this.modalElement.querySelector('#totalRequests').textContent = '0';
             this.modalElement.querySelector('#successfulRequests').textContent = '0';
@@ -361,7 +361,7 @@ export class RateLimitTester {
             this.modalElement.querySelector('#successRateBar').style.width = '0%';
         }
     }
-    
+
     closeModal() {
         this.stop();
         if (this.modalElement) {
