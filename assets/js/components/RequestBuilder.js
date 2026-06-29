@@ -20,7 +20,7 @@ export class RequestBuilder {
         this.rateLimitTester = new RateLimitTester(this);
 
         this.render();
-        this.attachEventListeners();
+        this.attachEventListeners(); // Sadece bir kez, constructor'da
         this.subscribeToEvents();
     }
 
@@ -316,112 +316,84 @@ export class RequestBuilder {
     }
 
     attachEventListeners() {
-        // Send button
-        this.container.querySelector('#sendRequestBtn').addEventListener('click', () => {
-            this.sendRequest();
-        });
-
-        // Rate Limit Test button
-        this.container.querySelector('#rateLimitTestBtn').addEventListener('click', () => {
-            this.rateLimitTester.showModal();
-        });
-
-        // Keyboard shortcut (Ctrl/Cmd + Enter)
-        document.addEventListener('keydown', (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                e.preventDefault();
+        // Event delegation: tek bir listener tüm click event'leri yakalar
+        this.container.addEventListener('click', (e) => {
+            // Send button
+            if (e.target.id === 'sendRequestBtn') {
                 this.sendRequest();
             }
-        });
-
-        // Method and URL changes
-        this.container.querySelector('#requestMethod').addEventListener('change', (e) => {
-            this.currentRequest.method = e.target.value;
-        });
-
-        this.container.querySelector('#requestUrl').addEventListener('input', (e) => {
-            this.currentRequest.url = e.target.value;
-        });
-
-        // Tab switching
-        this.container.querySelectorAll('[data-tab]').forEach(tab => {
-            tab.addEventListener('click', (e) => {
-                const tabName = e.target.dataset.tab;
-                this.switchTab(tabName);
-            });
-        });
-
-        // Headers
-        this.container.querySelector('#addHeaderBtn').addEventListener('click', () => {
-            this.currentRequest.headers.push({ key: '', value: '', enabled: true });
-            this.renderHeaders();
-        });
-
-        this.container.addEventListener('click', (e) => {
-            if (e.target.classList.contains('remove-header')) {
+            // Rate Limit Test button
+            else if (e.target.id === 'rateLimitTestBtn') {
+                this.rateLimitTester.showModal();
+            }
+            // Tab switching
+            else if (e.target.dataset.tab) {
+                this.switchTab(e.target.dataset.tab);
+            }
+            // Add Header button
+            else if (e.target.id === 'addHeaderBtn') {
+                this.currentRequest.headers.push({ key: '', value: '', enabled: true });
+                this.renderHeaders();
+            }
+            // Remove Header button
+            else if (e.target.classList.contains('remove-header')) {
                 const index = parseInt(e.target.dataset.index);
                 this.currentRequest.headers.splice(index, 1);
                 this.renderHeaders();
             }
-        });
-
-        this.container.addEventListener('input', (e) => {
-            if (e.target.classList.contains('header-key')) {
-                const index = parseInt(e.target.dataset.index);
-                this.currentRequest.headers[index].key = e.target.value;
-            } else if (e.target.classList.contains('header-value')) {
-                const index = parseInt(e.target.dataset.index);
-                this.currentRequest.headers[index].value = e.target.value;
-            }
-        });
-
-        this.container.addEventListener('change', (e) => {
-            if (e.target.classList.contains('header-enabled')) {
-                const index = parseInt(e.target.dataset.index);
-                this.currentRequest.headers[index].enabled = e.target.checked;
-            }
-        });
-
-        // Body type
-        this.container.querySelectorAll('input[name="bodyType"]').forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                this.activeBodyType = e.target.value;
-                this.renderBodyEditor();
-            });
-        });
-
-        // Auth type
-        const authTypeSelect = this.container.querySelector('#authType');
-        if (authTypeSelect) {
-            authTypeSelect.addEventListener('change', (e) => {
-                this.activeAuthType = e.target.value;
-                this.currentRequest.auth = { type: e.target.value };
-                this.renderAuthFields();
-            });
-        }
-
-        // Form Data
-        this.container.addEventListener('click', (e) => {
-            if (e.target.id === 'addFormDataBtn') {
+            // Add Form Data button
+            else if (e.target.id === 'addFormDataBtn') {
                 if (!this.currentRequest.formData) {
                     this.currentRequest.formData = [];
                 }
                 this.currentRequest.formData.push({ key: '', value: '', enabled: true });
                 this.renderFormData();
-            } else if (e.target.classList.contains('remove-formdata')) {
+            }
+            // Remove Form Data button
+            else if (e.target.classList.contains('remove-formdata')) {
                 const index = parseInt(e.target.dataset.index);
                 this.currentRequest.formData.splice(index, 1);
                 this.renderFormData();
             }
+            // Add Parameter button
+            else if (e.target.id === 'addParamBtn') {
+                if (!this.currentRequest.queryParams) {
+                    this.currentRequest.queryParams = [];
+                }
+                this.currentRequest.queryParams.push({ key: '', value: '', enabled: true });
+                this.renderParams();
+            }
+            // Remove Parameter button
+            else if (e.target.classList.contains('remove-param')) {
+                const index = parseInt(e.target.dataset.index);
+                this.currentRequest.queryParams.splice(index, 1);
+                this.renderParams();
+            }
         });
 
+        // Event delegation: tek bir listener tüm input event'leri yakalar
         this.container.addEventListener('input', (e) => {
-            if (e.target.classList.contains('formdata-key')) {
+            // Request URL
+            if (e.target.id === 'requestUrl') {
+                this.currentRequest.url = e.target.value;
+            }
+            // Header key/value inputs
+            else if (e.target.classList.contains('header-key')) {
+                const index = parseInt(e.target.dataset.index);
+                this.currentRequest.headers[index].key = e.target.value;
+            }
+            else if (e.target.classList.contains('header-value')) {
+                const index = parseInt(e.target.dataset.index);
+                this.currentRequest.headers[index].value = e.target.value;
+            }
+            // Form data key/value inputs
+            else if (e.target.classList.contains('formdata-key')) {
                 const index = parseInt(e.target.dataset.index);
                 if (this.currentRequest.formData && this.currentRequest.formData[index]) {
                     this.currentRequest.formData[index].key = e.target.value;
                 }
-            } else if (e.target.classList.contains('formdata-value')) {
+            }
+            else if (e.target.classList.contains('formdata-value')) {
                 const index = parseInt(e.target.dataset.index);
                 if (this.currentRequest.formData && this.currentRequest.formData[index]) {
                     this.currentRequest.formData[index].value = e.target.value;
@@ -429,8 +401,30 @@ export class RequestBuilder {
             }
         });
 
+        // Event delegation: tek bir listener tüm change event'leri yakalar
         this.container.addEventListener('change', (e) => {
-            if (e.target.classList.contains('formdata-enabled')) {
+            // Request Method
+            if (e.target.id === 'requestMethod') {
+                this.currentRequest.method = e.target.value;
+            }
+            // Body Type (radio buttons)
+            else if (e.target.name === 'bodyType') {
+                this.activeBodyType = e.target.value;
+                this.renderBodyEditor();
+            }
+            // Auth Type
+            else if (e.target.id === 'authType') {
+                this.activeAuthType = e.target.value;
+                this.currentRequest.auth = { type: e.target.value };
+                this.renderAuthFields();
+            }
+            // Header enabled checkbox
+            else if (e.target.classList.contains('header-enabled')) {
+                const index = parseInt(e.target.dataset.index);
+                this.currentRequest.headers[index].enabled = e.target.checked;
+            }
+            // Form data enabled checkbox
+            else if (e.target.classList.contains('formdata-enabled')) {
                 const index = parseInt(e.target.dataset.index);
                 if (this.currentRequest.formData && this.currentRequest.formData[index]) {
                     this.currentRequest.formData[index].enabled = e.target.checked;
@@ -438,20 +432,11 @@ export class RequestBuilder {
             }
         });
 
-        // Query params
-        this.container.querySelector('#addParamBtn').addEventListener('click', () => {
-            if (!this.currentRequest.queryParams) {
-                this.currentRequest.queryParams = [];
-            }
-            this.currentRequest.queryParams.push({ key: '', value: '', enabled: true });
-            this.renderParams();
-        });
-
-        this.container.addEventListener('click', (e) => {
-            if (e.target.classList.contains('remove-param')) {
-                const index = parseInt(e.target.dataset.index);
-                this.currentRequest.queryParams.splice(index, 1);
-                this.renderParams();
+        // Keyboard shortcut (Ctrl/Cmd + Enter) - global listener
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                this.sendRequest();
             }
         });
     }
@@ -595,7 +580,6 @@ export class RequestBuilder {
             this.activeBodyType = request.bodyType || BODY_TYPES.JSON;
             this.activeAuthType = request.auth?.type || AUTH_TYPES.NONE;
             this.render();
-            this.attachEventListeners();
         });
 
         EventBus.on(EVENTS.ENVIRONMENT_CHANGED, (environment) => {
