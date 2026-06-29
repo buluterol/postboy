@@ -8,6 +8,7 @@ import { HTTP_METHODS, AUTH_TYPES, BODY_TYPES, EVENTS } from '../utils/constants
 import { EventBus } from '../services/EventBus.js';
 import { interpolateVariables, createElement } from '../utils/helpers.js';
 import ApiService from '../services/ApiService.js';
+import { RateLimitTester } from './RateLimitTester.js';
 
 export class RequestBuilder {
     constructor(container) {
@@ -16,6 +17,7 @@ export class RequestBuilder {
         this.activeBodyType = BODY_TYPES.JSON;
         this.activeAuthType = AUTH_TYPES.NONE;
         this.currentEnvironment = {};
+        this.rateLimitTester = new RateLimitTester(this);
         
         this.render();
         this.attachEventListeners();
@@ -53,6 +55,12 @@ export class RequestBuilder {
                     placeholder="https://api.example.com/endpoint"
                     value="${this.currentRequest.url}"
                 >
+                
+                <button id="rateLimitTestBtn" class="btn btn-secondary" title="Rate Limit Tester">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                </button>
                 
                 <button id="sendRequestBtn" class="btn btn-primary">
                     <span id="sendBtnText">Send</span>
@@ -311,6 +319,11 @@ export class RequestBuilder {
         // Send button
         this.container.querySelector('#sendRequestBtn').addEventListener('click', () => {
             this.sendRequest();
+        });
+        
+        // Rate Limit Test button
+        this.container.querySelector('#rateLimitTestBtn').addEventListener('click', () => {
+            this.rateLimitTester.showModal();
         });
         
         // Keyboard shortcut (Ctrl/Cmd + Enter)
