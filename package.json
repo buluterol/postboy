@@ -1,0 +1,24 @@
+{
+  "name": "postboy",
+  "version": "1.0.0",
+  "description": "Lightweight Postman alternative - API testing tool with PHP backend and Vanilla JS frontend",
+  "main": "index.html",
+  "scripts": {
+    "dev": "php -S localhost:8000",
+    "build:css": "npx tailwindcss -i ./assets/css/style.css -o ./assets/css/output.css",
+    "watch:css": "npx tailwindcss -i ./assets/css/style.css -o ./assets/css/output.css --watch"
+  },
+  "keywords": [
+    "api",
+    "testing",
+    "postman",
+    "rest",
+    "http",
+    "client"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "tailwindcss": "^3.4.0"
+  }
+}
