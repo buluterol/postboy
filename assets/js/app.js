@@ -10,6 +10,8 @@ import { ResponseViewer } from './components/ResponseViewer.js';
 import { CollectionManager } from './components/CollectionManager.js';
 import { EnvironmentManager } from './components/EnvironmentManager.js';
 import { HistoryPanel } from './components/HistoryPanel.js';
+import { SavedResponsesPanel } from './components/SavedResponsesPanel.js';
+import { ResizeManager } from './utils/ResizeManager.js';
 
 class PostboyApp {
     constructor() {
@@ -25,6 +27,10 @@ class PostboyApp {
 
         // Initialize components
         await this.initComponents();
+
+        // Initialize resize manager
+        this.resizeManager = new ResizeManager();
+        this.resizeManager.startListening();
 
         // Attach global event listeners
         this.attachEventListeners();
@@ -67,6 +73,9 @@ class PostboyApp {
 
         // History Panel
         this.components.historyPanel = new HistoryPanel();
+        
+        // Saved Responses Panel
+        this.components.savedResponsesPanel = new SavedResponsesPanel();
     }
 
     attachEventListeners() {
@@ -101,6 +110,14 @@ class PostboyApp {
                 this.components.historyPanel?.showModal();
             });
         }
+        
+        // Saved Responses Button
+        const savedResponsesBtn = document.getElementById('savedResponsesBtn');
+        if (savedResponsesBtn) {
+            savedResponsesBtn.addEventListener('click', () => {
+                this.components.savedResponsesPanel?.showModal();
+            });
+        }
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
@@ -133,36 +150,54 @@ class PostboyApp {
             return;
         }
 
-        // Show collection selector
-        let selectedCollectionId;
+        // Check if request already exists in a collection (has ID)
+        let selectedCollectionId = null;
+        let requestName = currentRequest.name;
 
-        if (collectionManager.collections.length === 1) {
-            selectedCollectionId = collectionManager.collections[0].id;
-        } else {
-            // Simple prompt for now - could be replaced with a modal
-            const collectionNames = collectionManager.collections
-                .map((c, i) => `${i + 1}. ${c.name}`)
-                .join('\n');
-
-            const choice = prompt(
-                `Select collection:\n${collectionNames}\n\nEnter number:`,
-                '1'
-            );
-
-            if (!choice) return;
-
-            const index = parseInt(choice) - 1;
-            if (index >= 0 && index < collectionManager.collections.length) {
-                selectedCollectionId = collectionManager.collections[index].id;
-            } else {
-                alert('Invalid selection');
-                return;
+        if (currentRequest.id) {
+            // Find which collection this request belongs to
+            for (const collection of collectionManager.collections) {
+                const existingRequest = collection.requests?.find(r => r.id === currentRequest.id);
+                if (existingRequest) {
+                    selectedCollectionId = collection.id;
+                    requestName = existingRequest.name || currentRequest.name || currentRequest.url;
+                    break;
+                }
             }
         }
 
-        // Ask for request name
-        const requestName = prompt('Enter request name:', currentRequest.url);
-        if (!requestName) return;
+        // If request not found in any collection, ask user
+        if (!selectedCollectionId) {
+            // Show collection selector
+            if (collectionManager.collections.length === 1) {
+                selectedCollectionId = collectionManager.collections[0].id;
+            } else {
+                // Simple prompt for now - could be replaced with a modal
+                const collectionNames = collectionManager.collections
+                    .map((c, i) => `${i + 1}. ${c.name}`)
+                    .join('\n');
+
+                const choice = prompt(
+                    `Select collection:\n${collectionNames}\n\nEnter number:`,
+                    '1'
+                );
+
+                if (!choice) return;
+
+                const index = parseInt(choice) - 1;
+                if (index >= 0 && index < collectionManager.collections.length) {
+                    selectedCollectionId = collectionManager.collections[index].id;
+                } else {
+                    alert('Invalid selection');
+                    return;
+                }
+            }
+
+            // Ask for request name (only for new requests)
+            const promptedName = prompt('Enter request name:', currentRequest.url);
+            if (!promptedName) return;
+            requestName = promptedName;
+        }
 
         // Save request
         const request = {

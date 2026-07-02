@@ -27,6 +27,36 @@ export class CollectionManager {
     async loadCollections() {
         try {
             this.collections = await StorageService.getCollections();
+            
+            // Load collection order from localStorage
+            const savedOrder = localStorage.getItem('collectionOrder');
+            if (savedOrder) {
+                try {
+                    const orderArray = JSON.parse(savedOrder);
+                    // Sort collections based on saved order
+                    this.collections.sort((a, b) => {
+                        const indexA = orderArray.indexOf(a.id);
+                        const indexB = orderArray.indexOf(b.id);
+                        // If not found in order array, put at end
+                        if (indexA === -1) return 1;
+                        if (indexB === -1) return -1;
+                        return indexA - indexB;
+                    });
+                } catch (e) {
+                    console.error('Failed to parse collection order:', e);
+                }
+            }
+            
+            // Load expanded collections from localStorage
+            const savedExpanded = localStorage.getItem('expandedCollections');
+            if (savedExpanded) {
+                try {
+                    const expandedArray = JSON.parse(savedExpanded);
+                    this.expandedCollections = new Set(expandedArray);
+                } catch (e) {
+                    this.expandedCollections = new Set();
+                }
+            }
         } catch (error) {
             console.error('Failed to load collections:', error);
             this.collections = [];
@@ -58,9 +88,16 @@ export class CollectionManager {
         const requestCount = collection.requests?.length || 0;
 
         return `
-            <div class="collection-item" data-collection-id="${collection.id}">
+            <div class="collection-item" data-collection-id="${collection.id}" draggable="false">
                 <!-- Collection Header -->
                 <div class="flex items-center gap-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer group">
+                    <button class="drag-handle-collection cursor-move p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" 
+                            title="Drag to reorder">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                        </svg>
+                    </button>
+                    
                     <button class="collection-toggle w-4 h-4 flex items-center justify-center" 
                             data-collection-id="${collection.id}">
                         <svg class="w-3 h-3 transform transition-transform ${isExpanded ? 'rotate-90' : ''}" 
@@ -116,7 +153,13 @@ export class CollectionManager {
 
         return `
             <div class="request-item flex items-center gap-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer group"
-                 data-request-id="${request.id}" data-collection-id="${collectionId}">
+                 data-request-id="${request.id}" data-collection-id="${collectionId}" draggable="false">
+                <button class="drag-handle-request cursor-move p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" 
+                        title="Drag to reorder">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                    </svg>
+                </button>
                 <span class="method-badge ${methodClass} text-xs px-1.5 py-0.5">${request.method}</span>
                 <span class="flex-1 text-sm truncate">${request.name || request.url}</span>
                 
@@ -189,6 +232,230 @@ export class CollectionManager {
                 this.addRequestPrompt(collectionId);
             });
         });
+        
+        // Drag & Drop for collections and requests
+        this.attachDragListeners();
+    }
+    
+    attachDragListeners() {
+        const collectionItems = this.container.querySelectorAll('.collection-item');
+        const requestItems = this.container.querySelectorAll('.request-item');
+        
+        // Shared drag state variables
+        let draggedCollectionElement = null;
+        let draggedCollectionIndex = null;
+        let draggedRequestElement = null;
+        let draggedRequestId = null;
+        let draggedRequestCollectionId = null;
+        
+        // Collection drag & drop
+        collectionItems.forEach((item, index) => {
+            const dragHandle = item.querySelector('.drag-handle-collection');
+            
+            if (dragHandle) {
+                // Enable dragging only when drag handle is pressed
+                dragHandle.addEventListener('mousedown', (e) => {
+                    item.setAttribute('draggable', 'true');
+                    e.stopPropagation();
+                });
+                
+                dragHandle.addEventListener('mouseup', () => {
+                    setTimeout(() => {
+                        item.setAttribute('draggable', 'false');
+                    }, 100);
+                });
+            }
+            
+            item.addEventListener('dragstart', (e) => {
+                draggedCollectionElement = item;
+                draggedCollectionIndex = index;
+                item.classList.add('opacity-50');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+            
+            item.addEventListener('dragend', (e) => {
+                item.classList.remove('opacity-50');
+                item.setAttribute('draggable', 'false');
+                draggedCollectionElement = null;
+                draggedCollectionIndex = null;
+                collectionItems.forEach(ci => ci.classList.remove('border-t-2', 'border-b-2', 'border-primary-500'));
+            });
+            
+            item.addEventListener('dragover', (e) => {
+                // Don't show border if dragging a request
+                if (draggedRequestElement) return;
+                
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                
+                if (draggedCollectionElement === item) return;
+                
+                const rect = item.getBoundingClientRect();
+                const midpoint = rect.top + rect.height / 2;
+                
+                collectionItems.forEach(ci => ci.classList.remove('border-t-2', 'border-b-2', 'border-primary-500'));
+                
+                if (e.clientY < midpoint) {
+                    item.classList.add('border-t-2', 'border-primary-500');
+                } else {
+                    item.classList.add('border-b-2', 'border-primary-500');
+                }
+            });
+            
+            item.addEventListener('drop', async (e) => {
+                // Don't drop if dragging a request
+                if (draggedRequestElement) return;
+                
+                e.preventDefault();
+                
+                if (draggedCollectionElement === item) return;
+                
+                const dropIndex = index;
+                const rect = item.getBoundingClientRect();
+                const midpoint = rect.top + rect.height / 2;
+                
+                let newIndex = dropIndex;
+                if (e.clientY >= midpoint) {
+                    newIndex = dropIndex + 1;
+                }
+                
+                // Reorder collections array
+                const collections = [...this.collections];
+                const [movedCollection] = collections.splice(draggedCollectionIndex, 1);
+                
+                if (draggedCollectionIndex < newIndex) {
+                    newIndex--;
+                }
+                
+                collections.splice(newIndex, 0, movedCollection);
+                this.collections = collections;
+                
+                // Save all collections with new order
+                await this.saveCollectionsOrder();
+                this.render();
+            });
+            
+            item.addEventListener('dragleave', (e) => {
+                if (!item.contains(e.relatedTarget)) {
+                    item.classList.remove('border-t-2', 'border-b-2', 'border-primary-500');
+                }
+            });
+        });
+        
+        // Request drag & drop
+        requestItems.forEach(item => {
+            const dragHandle = item.querySelector('.drag-handle-request');
+            
+            if (dragHandle) {
+                // Enable dragging only when drag handle is pressed
+                dragHandle.addEventListener('mousedown', (e) => {
+                    item.setAttribute('draggable', 'true');
+                    e.stopPropagation();
+                });
+                
+                dragHandle.addEventListener('mouseup', () => {
+                    setTimeout(() => {
+                        item.setAttribute('draggable', 'false');
+                    }, 100);
+                });
+            }
+            
+            item.addEventListener('dragstart', (e) => {
+                draggedRequestElement = item;
+                draggedRequestId = item.dataset.requestId;
+                draggedRequestCollectionId = item.dataset.collectionId;
+                item.classList.add('opacity-50');
+                e.dataTransfer.effectAllowed = 'move';
+                e.stopPropagation();
+            });
+            
+            item.addEventListener('dragend', (e) => {
+                item.classList.remove('opacity-50');
+                item.setAttribute('draggable', 'false');
+                draggedRequestElement = null;
+                draggedRequestId = null;
+                draggedRequestCollectionId = null;
+                requestItems.forEach(ri => ri.classList.remove('border-t-2', 'border-b-2', 'border-primary-500'));
+            });
+            
+            item.addEventListener('dragover', (e) => {
+                // Only allow drop within same collection
+                if (item.dataset.collectionId !== draggedRequestCollectionId) return;
+                
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+                
+                if (draggedRequestElement === item) return;
+                
+                const rect = item.getBoundingClientRect();
+                const midpoint = rect.top + rect.height / 2;
+                
+                requestItems.forEach(ri => ri.classList.remove('border-t-2', 'border-b-2', 'border-primary-500'));
+                
+                if (e.clientY < midpoint) {
+                    item.classList.add('border-t-2', 'border-primary-500');
+                } else {
+                    item.classList.add('border-b-2', 'border-primary-500');
+                }
+            });
+            
+            item.addEventListener('drop', async (e) => {
+                // Only allow drop within same collection
+                if (item.dataset.collectionId !== draggedRequestCollectionId) return;
+                
+                e.preventDefault();
+                e.stopPropagation();
+                
+                if (draggedRequestElement === item) return;
+                
+                const collection = this.collections.find(c => c.id === draggedRequestCollectionId);
+                if (!collection || !collection.requests) return;
+                
+                const draggedIndex = collection.requests.findIndex(r => r.id === draggedRequestId);
+                const dropIndex = collection.requests.findIndex(r => r.id === item.dataset.requestId);
+                
+                const rect = item.getBoundingClientRect();
+                const midpoint = rect.top + rect.height / 2;
+                
+                let newIndex = dropIndex;
+                if (e.clientY >= midpoint) {
+                    newIndex = dropIndex + 1;
+                }
+                
+                // Reorder requests array
+                const requests = [...collection.requests];
+                const [movedRequest] = requests.splice(draggedIndex, 1);
+                
+                if (draggedIndex < newIndex) {
+                    newIndex--;
+                }
+                
+                requests.splice(newIndex, 0, movedRequest);
+                collection.requests = requests;
+                
+                // Save updated collection
+                await StorageService.updateCollection(collection.id, collection);
+                await this.loadCollections();
+                this.render();
+            });
+            
+            item.addEventListener('dragleave', (e) => {
+                if (!item.contains(e.relatedTarget)) {
+                    item.classList.remove('border-t-2', 'border-b-2', 'border-primary-500');
+                }
+            });
+        });
+    }
+    
+    async saveCollectionsOrder() {
+        // Save collection order to localStorage
+        try {
+            const orderArray = this.collections.map(c => c.id);
+            localStorage.setItem('collectionOrder', JSON.stringify(orderArray));
+        } catch (error) {
+            console.error('Failed to save collections order:', error);
+        }
     }
 
     toggleCollection(collectionId) {
@@ -197,6 +464,8 @@ export class CollectionManager {
         } else {
             this.expandedCollections.add(collectionId);
         }
+        // Save to localStorage
+        localStorage.setItem('expandedCollections', JSON.stringify([...this.expandedCollections]));
         this.render();
     }
 

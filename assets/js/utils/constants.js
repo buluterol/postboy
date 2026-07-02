@@ -71,6 +71,7 @@ export const API_ENDPOINTS = {
 export const EVENTS = {
     REQUEST_SENT: 'request:sent',
     RESPONSE_RECEIVED: 'response:received',
+    RESPONSE_SAVED: 'response:saved',
     COLLECTION_UPDATED: 'collection:updated',
     ENVIRONMENT_CHANGED: 'environment:changed',
     THEME_CHANGED: 'theme:changed',

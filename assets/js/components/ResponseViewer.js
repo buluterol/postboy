@@ -17,10 +17,20 @@ export class ResponseViewer {
     constructor(container) {
         this.container = container;
         this.currentResponse = null;
+        this.currentRequest = null;
         this.activeFormat = RESPONSE_FORMATS.JSON;
+        this.dropdownOpen = false;
 
         this.subscribeToEvents();
         this.renderEmpty();
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (this.dropdownOpen && !e.target.closest('#savedResponsesDropdown')) {
+                this.dropdownOpen = false;
+                this.updateDropdownVisibility();
+            }
+        });
     }
 
     renderEmpty() {
@@ -41,6 +51,7 @@ export class ResponseViewer {
         }
 
         const { status, statusText, responseTime, headers, body, error } = this.currentResponse;
+        const savedResponses = this.getSavedResponsesForCurrentRequest();
 
         this.container.innerHTML = `
             <!-- Status Bar -->
@@ -57,19 +68,74 @@ export class ResponseViewer {
                     ` : ''}
                 </div>
                 
-                <button id="copyResponseBtn" class="btn btn-secondary btn-sm">
-                    Copy Response
-                </button>
+                <div class="flex gap-2 items-center">
+                    <button id="saveResponseBtn" class="btn btn-primary btn-sm">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+                        </svg>
+                        Save Response
+                    </button>
+                    
+                    <button id="copyResponseBtn" class="btn btn-secondary btn-sm">
+                        Copy Response
+                    </button>
+                    
+                    <!-- Saved Responses Dropdown -->
+                    ${savedResponses.length > 0 ? `
+                        <div id="savedResponsesDropdown" class="relative">
+                            <button id="savedResponsesBtn" class="btn btn-secondary btn-sm">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path>
+                                </svg>
+                                Saved Responses (${savedResponses.length})
+                                <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+                            
+                            <!-- Dropdown Menu -->
+                            <div id="savedResponsesMenu" class="hidden absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 max-h-96 overflow-y-auto scrollbar-thin">
+                                <div class="p-2">
+                                    ${savedResponses.map((saved, index) => `
+                                        <div class="saved-response-item p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg cursor-pointer transition-colors mb-2"
+                                             data-saved-index="${index}"
+                                             title="${saved.name}">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="badge ${getStatusCodeColor(saved.response.status)} text-xs px-2 py-1">
+                                                    ${saved.response.status} ${saved.request.method}
+                                                </span>
+                                                ${saved.response.responseTime !== undefined ? `
+                                                    <span class="badge badge-info text-xs px-2 py-1">
+                                                        ${formatResponseTime(saved.response.responseTime)}
+                                                    </span>
+                                                ` : ''}
+                                            </div>
+                                            <div class="text-sm text-gray-800 dark:text-gray-200 font-medium mb-1 truncate">
+                                                ${saved.name}
+                                            </div>
+                                            <div class="text-xs text-gray-500 dark:text-gray-400 truncate mb-1">
+                                                ${saved.request.url}
+                                            </div>
+                                            <div class="text-xs text-gray-400 dark:text-gray-500">
+                                                ${new Date(saved.timestamp).toLocaleString()}
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
             </div>
-            
-            <!-- Tabs -->
-            <div class="border-b border-gray-200 dark:border-gray-700 mb-4">
-                <nav class="flex gap-4">
-                    <button class="tab tab-active" data-tab="body">Body</button>
-                    <button class="tab" data-tab="headers">Headers</button>
-                </nav>
-            </div>
-            
+                    
+                    <!-- Tabs -->
+                    <div class="border-b border-gray-200 dark:border-gray-700 mb-4">
+                        <nav class="flex gap-4">
+                            <button class="tab tab-active" data-tab="body">Body</button>
+                            <button class="tab" data-tab="headers">Headers</button>
+                        </nav>
+                    </div>
+                    
             <!-- Tab Content -->
             <div id="responseTabContent">
                 <!-- Body Tab -->
@@ -207,6 +273,45 @@ export class ResponseViewer {
                 this.copyResponse();
             });
         }
+        
+        // Save response
+        const saveBtn = this.container.querySelector('#saveResponseBtn');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => {
+                this.saveResponse();
+            });
+        }
+        
+        // Saved responses dropdown toggle
+        const dropdownBtn = this.container.querySelector('#savedResponsesBtn');
+        if (dropdownBtn) {
+            dropdownBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.dropdownOpen = !this.dropdownOpen;
+                this.updateDropdownVisibility();
+            });
+        }
+        
+        // Load saved response
+        this.container.querySelectorAll('.saved-response-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                const index = parseInt(e.currentTarget.dataset.savedIndex);
+                this.loadSavedResponse(index);
+                this.dropdownOpen = false;
+                this.updateDropdownVisibility();
+            });
+        });
+    }
+    
+    updateDropdownVisibility() {
+        const menu = this.container.querySelector('#savedResponsesMenu');
+        if (menu) {
+            if (this.dropdownOpen) {
+                menu.classList.remove('hidden');
+            } else {
+                menu.classList.add('hidden');
+            }
+        }
     }
 
     switchTab(tabName) {
@@ -246,8 +351,91 @@ export class ResponseViewer {
             console.error('Failed to copy:', err);
         });
     }
+    
+    saveResponse() {
+        if (!this.currentResponse || !this.currentRequest) {
+            import('../utils/helpers.js').then(({ showToast }) => {
+                showToast('No response to save', 'error');
+            });
+            return;
+        }
+        
+        import('../utils/helpers.js').then(({ prompt, showToast, generateId }) => {
+            const defaultName = `${this.currentRequest.method} ${this.currentRequest.url} - ${new Date().toLocaleString()}`;
+            const name = prompt('Enter a name for this saved response:', defaultName);
+            
+            if (!name) return;
+            
+            const savedResponse = {
+                id: generateId(),
+                name,
+                timestamp: Date.now(),
+                requestId: this.currentRequest.id, // Link to request
+                request: this.currentRequest,
+                response: this.currentResponse
+            };
+            
+            // Get existing saved responses
+            const saved = JSON.parse(localStorage.getItem('savedResponses') || '[]');
+            saved.unshift(savedResponse);
+            
+            // Keep only last 50 responses
+            if (saved.length > 50) {
+                saved.splice(50);
+            }
+            
+            localStorage.setItem('savedResponses', JSON.stringify(saved));
+            showToast('Response saved successfully', 'success');
+            
+            EventBus.emit(EVENTS.RESPONSE_SAVED, savedResponse);
+            
+            // Re-render to show the new saved response in sidebar
+            this.render();
+        });
+    }
+    
+    getSavedResponsesForCurrentRequest() {
+        if (!this.currentRequest || !this.currentRequest.id) {
+            return [];
+        }
+        
+        try {
+            const saved = JSON.parse(localStorage.getItem('savedResponses') || '[]');
+            // Filter by request ID and sort by timestamp (newest first)
+            return saved
+                .filter(item => item.requestId === this.currentRequest.id)
+                .sort((a, b) => b.timestamp - a.timestamp);
+        } catch (error) {
+            console.error('Failed to get saved responses:', error);
+            return [];
+        }
+    }
+    
+    loadSavedResponse(index) {
+        const savedResponses = this.getSavedResponsesForCurrentRequest();
+        const savedItem = savedResponses[index];
+        
+        if (!savedItem) return;
+        
+        // Load the saved response AND request data
+        this.currentResponse = savedItem.response;
+        this.currentRequest = savedItem.request;
+        this.render();
+        
+        // Also emit event to update the request builder UI
+        EventBus.emit(EVENTS.REQUEST_LOADED, savedItem.request);
+        
+        import('../utils/helpers.js').then(({ showToast }) => {
+            showToast(`Loaded: ${savedItem.name}`, 'success');
+        });
+    }
 
     subscribeToEvents() {
+        EventBus.on(EVENTS.REQUEST_SENT, (requestData) => {
+            // Store current request for saving purposes
+            this.currentRequest = requestData;
+        });
+        
         EventBus.on(EVENTS.RESPONSE_RECEIVED, (response) => {
             this.currentResponse = response;
             this.activeFormat = response.isJson ? RESPONSE_FORMATS.JSON : RESPONSE_FORMATS.RAW;

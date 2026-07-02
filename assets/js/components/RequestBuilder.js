@@ -18,6 +18,8 @@ export class RequestBuilder {
         this.activeAuthType = AUTH_TYPES.NONE;
         this.currentEnvironment = {};
         this.rateLimitTester = new RateLimitTester(this);
+        // Load active tab from localStorage (default: headers)
+        this.activeTab = localStorage.getItem('activeTab') || 'headers';
 
         this.render();
         this.attachEventListeners(); // Sadece bir kez, constructor'da
@@ -71,17 +73,17 @@ export class RequestBuilder {
             <!-- Tabs -->
             <div class="border-b border-gray-200 dark:border-gray-700 mb-4">
                 <nav class="flex gap-4">
-                    <button class="tab tab-active" data-tab="headers">Headers</button>
-                    <button class="tab" data-tab="body">Body</button>
-                    <button class="tab" data-tab="auth">Auth</button>
-                    <button class="tab" data-tab="params">Query Params</button>
+                    <button class="tab ${this.activeTab === 'headers' ? 'tab-active' : ''}" data-tab="headers">Headers</button>
+                    <button class="tab ${this.activeTab === 'body' ? 'tab-active' : ''}" data-tab="body">Body</button>
+                    <button class="tab ${this.activeTab === 'auth' ? 'tab-active' : ''}" data-tab="auth">Auth</button>
+                    <button class="tab ${this.activeTab === 'params' ? 'tab-active' : ''}" data-tab="params">Query Params</button>
                 </nav>
             </div>
             
             <!-- Tab Content -->
             <div id="tabContent" class="min-h-[300px]">
                 <!-- Headers Tab -->
-                <div id="headersTab" class="tab-content">
+                <div id="headersTab" class="tab-content ${this.activeTab !== 'headers' ? 'hidden' : ''}">
                     <div id="headersList" class="space-y-2">
                         <!-- Headers will be rendered here -->
                     </div>
@@ -91,7 +93,7 @@ export class RequestBuilder {
                 </div>
                 
                 <!-- Body Tab -->
-                <div id="bodyTab" class="tab-content hidden">
+                <div id="bodyTab" class="tab-content ${this.activeTab !== 'body' ? 'hidden' : ''}">
                     <div class="flex gap-4 mb-3">
                         <label class="flex items-center gap-2">
                             <input type="radio" name="bodyType" value="${BODY_TYPES.NONE}" 
@@ -121,7 +123,7 @@ export class RequestBuilder {
                 </div>
                 
                 <!-- Auth Tab -->
-                <div id="authTab" class="tab-content hidden">
+                <div id="authTab" class="tab-content ${this.activeTab !== 'auth' ? 'hidden' : ''}">
                     <div class="mb-4">
                         <label class="block text-sm font-medium mb-2">Auth Type</label>
                         <select id="authType" class="select">
@@ -138,7 +140,7 @@ export class RequestBuilder {
                 </div>
                 
                 <!-- Query Params Tab -->
-                <div id="paramsTab" class="tab-content hidden">
+                <div id="paramsTab" class="tab-content ${this.activeTab !== 'params' ? 'hidden' : ''}">
                     <div id="paramsList" class="space-y-2">
                         <!-- Params will be rendered here -->
                     </div>
@@ -303,7 +305,15 @@ export class RequestBuilder {
         const formData = this.currentRequest.formData || [];
 
         container.innerHTML = formData.map((field, index) => `
-            <div class="flex gap-2 items-center">
+            <div class="flex gap-2 items-center formdata-row p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" 
+                 draggable="true" 
+                 data-index="${index}">
+                <button class="drag-handle cursor-move p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" 
+                        title="Drag to reorder">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                    </svg>
+                </button>
                 <input type="checkbox" ${field.enabled ? 'checked' : ''} 
                        class="formdata-enabled" data-index="${index}">
                 <input type="text" class="input flex-1 formdata-key" 
@@ -313,25 +323,108 @@ export class RequestBuilder {
                 <button class="btn btn-danger btn-sm remove-formdata" data-index="${index}">×</button>
             </div>
         `).join('');
+
+        // Attach drag & drop listeners after rendering
+        this.attachFormDataDragListeners();
+    }
+
+    attachFormDataDragListeners() {
+        const rows = this.container.querySelectorAll('.formdata-row');
+        let draggedElement = null;
+        let draggedIndex = null;
+
+        rows.forEach(row => {
+            row.addEventListener('dragstart', (e) => {
+                draggedElement = row;
+                draggedIndex = parseInt(row.dataset.index);
+                row.classList.add('opacity-50');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+
+            row.addEventListener('dragend', (e) => {
+                row.classList.remove('opacity-50');
+                // Remove all drag-over indicators
+                rows.forEach(r => r.classList.remove('border-t-2', 'border-b-2', 'border-primary-500'));
+            });
+
+            row.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+
+                if (draggedElement === row) return;
+
+                // Show drop indicator
+                const rect = row.getBoundingClientRect();
+                const midpoint = rect.top + rect.height / 2;
+
+                // Remove previous indicators
+                rows.forEach(r => r.classList.remove('border-t-2', 'border-b-2', 'border-primary-500'));
+
+                if (e.clientY < midpoint) {
+                    row.classList.add('border-t-2', 'border-primary-500');
+                } else {
+                    row.classList.add('border-b-2', 'border-primary-500');
+                }
+            });
+
+            row.addEventListener('drop', (e) => {
+                e.preventDefault();
+
+                if (draggedElement === row) return;
+
+                const dropIndex = parseInt(row.dataset.index);
+                const rect = row.getBoundingClientRect();
+                const midpoint = rect.top + rect.height / 2;
+
+                // Determine if we're dropping above or below
+                let newIndex = dropIndex;
+                if (e.clientY >= midpoint) {
+                    newIndex = dropIndex + 1;
+                }
+
+                // Reorder the array
+                const formData = [...this.currentRequest.formData];
+                const [movedItem] = formData.splice(draggedIndex, 1);
+
+                // Adjust newIndex if we're moving down
+                if (draggedIndex < newIndex) {
+                    newIndex--;
+                }
+
+                formData.splice(newIndex, 0, movedItem);
+                this.currentRequest.formData = formData;
+
+                // Re-render
+                this.renderFormData();
+            });
+
+            row.addEventListener('dragleave', (e) => {
+                // Only remove if we're leaving the row entirely
+                if (!row.contains(e.relatedTarget)) {
+                    row.classList.remove('border-t-2', 'border-b-2', 'border-primary-500');
+                }
+            });
+        });
     }
 
     attachEventListeners() {
         // Event delegation: tek bir listener tüm click event'leri yakalar
         this.container.addEventListener('click', (e) => {
-            // Send button
-            if (e.target.id === 'sendRequestBtn') {
+            // Send button - closest() ile parent button'ı da kontrol et
+            if (e.target.closest('#sendRequestBtn')) {
                 this.sendRequest();
             }
             // Rate Limit Test button
-            else if (e.target.id === 'rateLimitTestBtn') {
+            else if (e.target.closest('#rateLimitTestBtn')) {
                 this.rateLimitTester.showModal();
             }
-            // Tab switching
-            else if (e.target.dataset.tab) {
-                this.switchTab(e.target.dataset.tab);
+            // Tab switching - closest ile parent tab button'ı kontrol et
+            else if (e.target.closest('[data-tab]')) {
+                const tabButton = e.target.closest('[data-tab]');
+                this.switchTab(tabButton.dataset.tab);
             }
             // Add Header button
-            else if (e.target.id === 'addHeaderBtn') {
+            else if (e.target.closest('#addHeaderBtn')) {
                 this.currentRequest.headers.push({ key: '', value: '', enabled: true });
                 this.renderHeaders();
             }
@@ -342,7 +435,7 @@ export class RequestBuilder {
                 this.renderHeaders();
             }
             // Add Form Data button
-            else if (e.target.id === 'addFormDataBtn') {
+            else if (e.target.closest('#addFormDataBtn')) {
                 if (!this.currentRequest.formData) {
                     this.currentRequest.formData = [];
                 }
@@ -356,7 +449,7 @@ export class RequestBuilder {
                 this.renderFormData();
             }
             // Add Parameter button
-            else if (e.target.id === 'addParamBtn') {
+            else if (e.target.closest('#addParamBtn')) {
                 if (!this.currentRequest.queryParams) {
                     this.currentRequest.queryParams = [];
                 }
@@ -442,6 +535,10 @@ export class RequestBuilder {
     }
 
     switchTab(tabName) {
+        // Save to localStorage
+        this.activeTab = tabName;
+        localStorage.setItem('activeTab', tabName);
+
         // Update tab buttons
         this.container.querySelectorAll('[data-tab]').forEach(tab => {
             if (tab.dataset.tab === tabName) {
@@ -487,6 +584,9 @@ export class RequestBuilder {
         try {
             // Prepare request data
             const requestData = this.prepareRequestData();
+            
+            // Emit REQUEST_SENT event for response saving
+            EventBus.emit(EVENTS.REQUEST_SENT, requestData);
 
             // Send request
             await ApiService.sendRequest(requestData);
