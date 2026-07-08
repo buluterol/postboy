@@ -132,7 +132,7 @@ export class SavedResponsesPanel {
 
     formatPreview(body) {
         if (!body) return 'No body';
-        
+
         try {
             // Try to parse and pretty print JSON
             const parsed = JSON.parse(body);
@@ -182,10 +182,10 @@ export class SavedResponsesPanel {
 
         // Load the request
         EventBus.emit(EVENTS.REQUEST_LOADED, item.request);
-        
+
         // Display the response
         EventBus.emit(EVENTS.RESPONSE_RECEIVED, item.response);
-        
+
         showToast('Response loaded successfully', 'success');
         this.closeModal();
     }
@@ -197,9 +197,9 @@ export class SavedResponsesPanel {
 
         this.savedResponses.splice(index, 1);
         localStorage.setItem('savedResponses', JSON.stringify(this.savedResponses));
-        
+
         showToast('Saved response deleted', 'success');
-        
+
         // Re-render the modal
         const modalBody = document.querySelector('#savedResponsesModal .modal-body');
         if (modalBody) {

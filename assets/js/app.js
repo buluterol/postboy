@@ -73,7 +73,7 @@ class PostboyApp {
 
         // History Panel
         this.components.historyPanel = new HistoryPanel();
-        
+
         // Saved Responses Panel
         this.components.savedResponsesPanel = new SavedResponsesPanel();
     }
@@ -110,7 +110,7 @@ class PostboyApp {
                 this.components.historyPanel?.showModal();
             });
         }
-        
+
         // Saved Responses Button
         const savedResponsesBtn = document.getElementById('savedResponsesBtn');
         if (savedResponsesBtn) {

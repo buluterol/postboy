@@ -23,7 +23,7 @@ export class ResponseViewer {
 
         this.subscribeToEvents();
         this.renderEmpty();
-        
+
         // Close dropdown when clicking outside
         document.addEventListener('click', (e) => {
             if (this.dropdownOpen && !e.target.closest('#savedResponsesDropdown')) {
@@ -273,7 +273,7 @@ export class ResponseViewer {
                 this.copyResponse();
             });
         }
-        
+
         // Save response
         const saveBtn = this.container.querySelector('#saveResponseBtn');
         if (saveBtn) {
@@ -281,7 +281,7 @@ export class ResponseViewer {
                 this.saveResponse();
             });
         }
-        
+
         // Saved responses dropdown toggle
         const dropdownBtn = this.container.querySelector('#savedResponsesBtn');
         if (dropdownBtn) {
@@ -291,7 +291,7 @@ export class ResponseViewer {
                 this.updateDropdownVisibility();
             });
         }
-        
+
         // Load saved response
         this.container.querySelectorAll('.saved-response-item').forEach(item => {
             item.addEventListener('click', (e) => {
@@ -302,7 +302,7 @@ export class ResponseViewer {
             });
         });
     }
-    
+
     updateDropdownVisibility() {
         const menu = this.container.querySelector('#savedResponsesMenu');
         if (menu) {
@@ -351,7 +351,7 @@ export class ResponseViewer {
             console.error('Failed to copy:', err);
         });
     }
-    
+
     saveResponse() {
         if (!this.currentResponse || !this.currentRequest) {
             import('../utils/helpers.js').then(({ showToast }) => {
@@ -359,13 +359,13 @@ export class ResponseViewer {
             });
             return;
         }
-        
+
         import('../utils/helpers.js').then(({ prompt, showToast, generateId }) => {
             const defaultName = `${this.currentRequest.method} ${this.currentRequest.url} - ${new Date().toLocaleString()}`;
             const name = prompt('Enter a name for this saved response:', defaultName);
-            
+
             if (!name) return;
-            
+
             const savedResponse = {
                 id: generateId(),
                 name,
@@ -374,31 +374,31 @@ export class ResponseViewer {
                 request: this.currentRequest,
                 response: this.currentResponse
             };
-            
+
             // Get existing saved responses
             const saved = JSON.parse(localStorage.getItem('savedResponses') || '[]');
             saved.unshift(savedResponse);
-            
+
             // Keep only last 50 responses
             if (saved.length > 50) {
                 saved.splice(50);
             }
-            
+
             localStorage.setItem('savedResponses', JSON.stringify(saved));
             showToast('Response saved successfully', 'success');
-            
+
             EventBus.emit(EVENTS.RESPONSE_SAVED, savedResponse);
-            
+
             // Re-render to show the new saved response in sidebar
             this.render();
         });
     }
-    
+
     getSavedResponsesForCurrentRequest() {
         if (!this.currentRequest || !this.currentRequest.id) {
             return [];
         }
-        
+
         try {
             const saved = JSON.parse(localStorage.getItem('savedResponses') || '[]');
             // Filter by request ID and sort by timestamp (newest first)
@@ -410,21 +410,21 @@ export class ResponseViewer {
             return [];
         }
     }
-    
+
     loadSavedResponse(index) {
         const savedResponses = this.getSavedResponsesForCurrentRequest();
         const savedItem = savedResponses[index];
-        
+
         if (!savedItem) return;
-        
+
         // Load the saved response AND request data
         this.currentResponse = savedItem.response;
         this.currentRequest = savedItem.request;
         this.render();
-        
+
         // Also emit event to update the request builder UI
         EventBus.emit(EVENTS.REQUEST_LOADED, savedItem.request);
-        
+
         import('../utils/helpers.js').then(({ showToast }) => {
             showToast(`Loaded: ${savedItem.name}`, 'success');
         });
@@ -435,7 +435,7 @@ export class ResponseViewer {
             // Store current request for saving purposes
             this.currentRequest = requestData;
         });
-        
+
         EventBus.on(EVENTS.RESPONSE_RECEIVED, (response) => {
             this.currentResponse = response;
             this.activeFormat = response.isJson ? RESPONSE_FORMATS.JSON : RESPONSE_FORMATS.RAW;

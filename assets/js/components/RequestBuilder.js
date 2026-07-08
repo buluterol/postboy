@@ -584,7 +584,7 @@ export class RequestBuilder {
         try {
             // Prepare request data
             const requestData = this.prepareRequestData();
-            
+
             // Emit REQUEST_SENT event for response saving
             EventBus.emit(EVENTS.REQUEST_SENT, requestData);
 
