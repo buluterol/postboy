@@ -10,10 +10,26 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// CORS Headers - Allow requests from any origin
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+// CORS: the UI is served from the same origin, so only loopback origins and the
+// host the app itself is served from are allowed. A foreign website must not be
+// able to drive the proxy (it can reach internal addresses) or read local data.
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if ($origin !== '') {
+    $originHost = parse_url($origin, PHP_URL_HOST);
+    $serverHost = parse_url('http://' . ($_SERVER['HTTP_HOST'] ?? ''), PHP_URL_HOST);
+    $loopback = ['localhost', '127.0.0.1', '[::1]', '::1'];
+    $allowed = $originHost && ($originHost === $serverHost || in_array($originHost, $loopback, true));
+    if (!$allowed) {
+        http_response_code(403);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => false, 'error' => 'Origin not allowed']);
+        exit();
+    }
+    header('Access-Control-Allow-Origin: ' . $origin);
+    header('Vary: Origin');
+    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+}
 
 // Handle OPTIONS requests
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -38,7 +54,8 @@ if (!is_dir(DATA_DIR)) {
 $dataFiles = [
     'collections.json' => [],
     'environments.json' => [],
-    'history.json' => []
+    'history.json' => [],
+    'globals.json' => []
 ];
 
 foreach ($dataFiles as $filename => $defaultContent) {

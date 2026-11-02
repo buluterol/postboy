@@ -11,7 +11,13 @@ import { CollectionManager } from './components/CollectionManager.js';
 import { EnvironmentManager } from './components/EnvironmentManager.js';
 import { HistoryPanel } from './components/HistoryPanel.js';
 import { SavedResponsesPanel } from './components/SavedResponsesPanel.js';
+import { ConsolePanel } from './components/ConsolePanel.js';
+import { RunnerPanel } from './components/RunnerPanel.js';
 import { ResizeManager } from './utils/ResizeManager.js';
+import { ImportExportPanel } from './components/ImportExportPanel.js';
+import { GlobalsPanel } from './components/GlobalsPanel.js';
+import { NodeSettingsPanel } from './components/NodeSettingsPanel.js';
+import { findRequest } from './utils/collectionTree.js';
 
 class PostboyApp {
     constructor() {
@@ -71,11 +77,24 @@ class PostboyApp {
         // Environment Manager
         this.components.environmentManager = new EnvironmentManager();
 
+        // Globals + collection/folder settings
+        this.components.globalsPanel = new GlobalsPanel();
+        this.components.nodeSettingsPanel = new NodeSettingsPanel(this.components.collectionManager);
+
+        // Import / Export
+        this.components.importExportPanel = new ImportExportPanel();
+
         // History Panel
         this.components.historyPanel = new HistoryPanel();
 
         // Saved Responses Panel
         this.components.savedResponsesPanel = new SavedResponsesPanel();
+
+        // Console Panel
+        this.components.consolePanel = new ConsolePanel();
+
+        // Collection Runner
+        this.components.runnerPanel = new RunnerPanel();
     }
 
     attachEventListeners() {
@@ -102,6 +121,19 @@ class PostboyApp {
                 this.components.environmentManager?.showModal();
             });
         }
+
+        document.getElementById('runnerBtn')?.addEventListener('click', () => {
+            this.components.runnerPanel?.showModal();
+        });
+
+        document.getElementById('globalsBtn')?.addEventListener('click', () => {
+            this.components.globalsPanel?.showModal();
+        });
+
+        // Import / Export Button
+        document.getElementById('importExportBtn')?.addEventListener('click', () => {
+            this.components.importExportPanel?.showModal();
+        });
 
         // History Button
         const historyBtn = document.getElementById('historyBtn');
@@ -157,7 +189,7 @@ class PostboyApp {
         if (currentRequest.id) {
             // Find which collection this request belongs to
             for (const collection of collectionManager.collections) {
-                const existingRequest = collection.requests?.find(r => r.id === currentRequest.id);
+                const existingRequest = findRequest(collection, currentRequest.id)?.request;
                 if (existingRequest) {
                     selectedCollectionId = collection.id;
                     requestName = existingRequest.name || currentRequest.name || currentRequest.url;

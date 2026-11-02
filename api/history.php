@@ -33,12 +33,39 @@ switch ($method) {
         sendError('Method not allowed', 405);
 }
 
+
+/**
+ * Mask credentials in a URL: userinfo and values of sensitive query parameters.
+ */
+function maskUrl($url)
+{
+    if (!is_string($url)) {
+        return $url;
+    }
+    $url = preg_replace('#^([a-z][a-z0-9+.-]*://)[^/@?\#]*@#i', '$1***@', $url);
+    return preg_replace_callback(
+        '/([?&])([^=&#]+)=([^&#]*)/',
+        function ($m) {
+            $name = strtolower(urldecode($m[2]));
+            if (preg_match('/token|key|secret|pass|pwd|auth|sig|session|credential|bearer/', $name)) {
+                return $m[1] . $m[2] . '=***';
+            }
+            return $m[0];
+        },
+        $url
+    );
+}
+
 /**
  * GET - List request history
  */
 function handleGet()
 {
     $history = readJsonFile('history.json');
+    foreach ($history as &$item) {
+        $item['url'] = maskUrl($item['url'] ?? '');
+    }
+    unset($item);
 
     // Sort by timestamp descending (newest first)
     usort($history, function ($a, $b) {
@@ -71,7 +98,7 @@ function handlePost()
     $entry = [
         'id' => generateId(),
         'method' => $data['method'],
-        'url' => $data['url'],
+        'url' => maskUrl($data['url']),
         'status' => $data['status'] ?? null,
         'responseTime' => $data['responseTime'] ?? null,
         'timestamp' => date('c')

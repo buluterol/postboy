@@ -7,7 +7,10 @@
 import { EVENTS, STORAGE_KEYS } from '../utils/constants.js';
 import { EventBus } from '../services/EventBus.js';
 import StorageService from '../services/StorageService.js';
-import { showToast, prompt, confirm, generateId, createElement } from '../utils/helpers.js';
+import { VariableStore } from '../services/VariableService.js';
+import { showToast, prompt, confirm, generateId, createElement, escapeHtml } from '../utils/helpers.js';
+import { variableTableHtml, attachVariableTable, readVariableTable } from './VariableTable.js';
+import { SECRET_MASK } from '../services/VariableService.js';
 
 export class EnvironmentManager {
     constructor() {
@@ -22,6 +25,10 @@ export class EnvironmentManager {
         await this.loadEnvironments();
         this.loadActiveEnvironment();
         this.updateEnvironmentSelector();
+        EventBus.on(EVENTS.ENVIRONMENT_IMPORTED, async () => {
+            await this.loadEnvironments();
+            this.updateEnvironmentSelector();
+        });
     }
 
     async loadEnvironments() {
@@ -54,21 +61,12 @@ export class EnvironmentManager {
     setActiveEnvironment(environment) {
         this.activeEnvironment = environment;
 
-        // Convert variables array to object
-        const variables = {};
-        if (environment && environment.variables) {
-            environment.variables.forEach(v => {
-                if (v.key) {
-                    variables[v.key] = v.value;
-                }
-            });
-        }
-
         // Save to localStorage
         localStorage.setItem(STORAGE_KEYS.ACTIVE_ENVIRONMENT, environment?.id || '');
 
         // Emit event
-        EventBus.emit(EVENTS.ENVIRONMENT_CHANGED, variables);
+        VariableStore.setEnvironment(environment || null);
+        EventBus.emit(EVENTS.ENVIRONMENT_CHANGED, environment || null);
 
         this.updateEnvironmentSelector();
     }
@@ -81,7 +79,7 @@ export class EnvironmentManager {
             <option value="">No Environment</option>
             ${this.environments.map(env => `
                 <option value="${env.id}" ${this.activeEnvironment?.id === env.id ? 'selected' : ''}>
-                    ${env.name}
+                    ${escapeHtml(env.name)}
                 </option>
             `).join('')}
         `;
@@ -142,7 +140,7 @@ export class EnvironmentManager {
                         <input type="radio" name="activeEnv" value="${env.id}" 
                                ${this.activeEnvironment?.id === env.id ? 'checked' : ''}
                                class="env-active-radio">
-                        <span class="font-semibold">${env.name}</span>
+                        <span class="font-semibold">${escapeHtml(env.name)}</span>
                     </div>
                     <div class="flex gap-2">
                         <button class="btn btn-secondary btn-sm env-edit" data-env-id="${env.id}">
@@ -166,8 +164,8 @@ export class EnvironmentManager {
                                 <tbody>
                                     ${env.variables.map(v => `
                                         <tr>
-                                            <td class="py-1 font-mono text-purple-600 dark:text-purple-400">{{${v.key}}}</td>
-                                            <td class="py-1 font-mono">${v.value}</td>
+                                            <td class="py-1 font-mono text-purple-600 dark:text-purple-400">{{${escapeHtml(v.key)}}}</td>
+                                            <td class="py-1 font-mono">${v.secret ? SECRET_MASK : escapeHtml(v.value)}</td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -231,73 +229,14 @@ export class EnvironmentManager {
     }
 
     async createEnvironment() {
-        const name = prompt('Enter environment name:');
-        if (!name) return;
-
-        try {
-            const environment = await StorageService.createEnvironment({
-                name,
-                variables: [],
-                isActive: this.environments.length === 0
-            });
-
-            this.environments.push(environment);
-
-            if (this.environments.length === 1) {
-                this.setActiveEnvironment(environment);
-            }
-
-            this.updateModalContent();
-            showToast('Environment created successfully', 'success');
-        } catch (error) {
-            console.error('Failed to create environment:', error);
-            showToast('Failed to create environment', 'error');
-        }
+        this.showEnvironmentEditModal(null);
     }
 
     async editEnvironment(envId) {
         const env = this.environments.find(e => e.id === envId);
         if (!env) return;
 
-        // Show edit modal (simplified - using prompts for now)
-        const newName = prompt('Enter new name:', env.name);
-        if (!newName) return;
-
-        const variablesJson = prompt(
-            'Enter variables as JSON array:\n[{"key": "baseUrl", "value": "https://api.example.com"}]',
-            JSON.stringify(env.variables || [], null, 2)
-        );
-
-        let variables = env.variables;
-        try {
-            if (variablesJson) {
-                variables = JSON.parse(variablesJson);
-            }
-        } catch (e) {
-            showToast('Invalid JSON format', 'error');
-            return;
-        }
-
-        try {
-            const updated = await StorageService.updateEnvironment(envId, {
-                ...env,
-                name: newName,
-                variables
-            });
-
-            const index = this.environments.findIndex(e => e.id === envId);
-            this.environments[index] = updated;
-
-            if (this.activeEnvironment?.id === envId) {
-                this.setActiveEnvironment(updated);
-            }
-
-            this.updateModalContent();
-            showToast('Environment updated successfully', 'success');
-        } catch (error) {
-            console.error('Failed to update environment:', error);
-            showToast('Failed to update environment', 'error');
-        }
+        this.showEnvironmentEditModal(env);
     }
 
     async deleteEnvironment(envId) {
@@ -325,5 +264,136 @@ export class EnvironmentManager {
             container.innerHTML = this.renderEnvironmentsList();
             this.attachModalEventListeners();
         }
+    }
+
+    showEnvironmentEditModal(environment) {
+        const isEdit = !!environment;
+        const variables = environment?.variables || [];
+
+        const editModal = createElement(`
+            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="envEditModal">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+                    <!-- Header -->
+                    <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                        <h2 class="text-xl font-semibold">${isEdit ? 'Edit' : 'Create'} Environment</h2>
+                        <button id="closeEnvEditModal" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <!-- Body -->
+                    <div class="flex-1 overflow-y-auto p-6 space-y-4">
+                        <!-- Name Input -->
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Environment Name</label>
+                            <input type="text" id="envName" value="${escapeHtml(environment?.name || '')}" 
+                                   class="input w-full" placeholder="e.g., Production, Development" required>
+                        </div>
+
+                        <!-- Variables Table -->
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Variables</label>
+                            ${variableTableHtml('envVariablesTable', variables)}
+                        </div>
+
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            💡 Use variables in your requests with <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">{{variableName}}</code> syntax
+                        </p>
+                    </div>
+                    
+                    <!-- Footer -->
+                    <div class="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+                        <button id="cancelEnvEdit" class="btn btn-secondary">
+                            Cancel
+                        </button>
+                        <button id="saveEnvEdit" class="btn btn-primary">
+                            ${isEdit ? 'Update' : 'Create'} Environment
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `);
+
+        document.getElementById('modals').appendChild(editModal);
+
+        // Attach event listeners
+        this.attachEditModalEventListeners(editModal, environment);
+    }
+
+    attachEditModalEventListeners(modal, environment) {
+        const isEdit = !!environment;
+
+        // Close modal
+        modal.querySelector('#closeEnvEditModal').addEventListener('click', () => {
+            modal.remove();
+        });
+
+        modal.querySelector('#cancelEnvEdit').addEventListener('click', () => {
+            modal.remove();
+        });
+
+        // Close on background click
+        modal.addEventListener('click', (e) => {
+            if (e.target.id === 'envEditModal') {
+                modal.remove();
+            }
+        });
+
+        attachVariableTable(modal, 'envVariablesTable');
+
+        // Save environment
+        modal.querySelector('#saveEnvEdit').addEventListener('click', async () => {
+            const name = modal.querySelector('#envName').value.trim();
+            
+            if (!name) {
+                showToast('Please enter environment name', 'error');
+                return;
+            }
+
+            const variables = readVariableTable(modal, 'envVariablesTable');
+
+            try {
+                if (isEdit) {
+                    // Update existing environment
+                    const updated = await StorageService.updateEnvironment(environment.id, {
+                        ...environment,
+                        name,
+                        variables
+                    });
+
+                    const index = this.environments.findIndex(e => e.id === environment.id);
+                    this.environments[index] = updated;
+
+                    if (this.activeEnvironment?.id === environment.id) {
+                        this.setActiveEnvironment(updated);
+                    }
+
+                    showToast('Environment updated successfully', 'success');
+                } else {
+                    // Create new environment
+                    const newEnv = await StorageService.createEnvironment({
+                        name,
+                        variables,
+                        isActive: this.environments.length === 0
+                    });
+
+                    this.environments.push(newEnv);
+
+                    if (this.environments.length === 1) {
+                        this.setActiveEnvironment(newEnv);
+                    }
+
+                    showToast('Environment created successfully', 'success');
+                }
+
+                modal.remove();
+                this.updateModalContent();
+            } catch (error) {
+                console.error('Failed to save environment:', error);
+                showToast('Failed to save environment', 'error');
+            }
+        });
     }
 }

@@ -131,6 +131,10 @@ if (curl_errno($ch)) {
 
 // Get response info
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$totalTime = curl_getinfo($ch, CURLINFO_TOTAL_TIME);
+if ($totalTime > 0) {
+    $responseTime = (int) round($totalTime * 1000); // cURL's own timer, excludes PHP overhead
+}
 $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
 $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
 
@@ -171,6 +175,7 @@ $result = [
     'body' => $responseBody,
     'isJson' => $isJson,
     'responseTime' => $responseTime,
+    'size' => strlen($responseBody),
     'contentType' => $contentType ?: 'text/plain'
 ];
 

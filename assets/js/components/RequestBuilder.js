@@ -6,8 +6,11 @@
 
 import { HTTP_METHODS, AUTH_TYPES, BODY_TYPES, EVENTS } from '../utils/constants.js';
 import { EventBus } from '../services/EventBus.js';
-import { interpolateVariables, createElement } from '../utils/helpers.js';
-import ApiService from '../services/ApiService.js';
+import { createElement, escapeHtml, showToast } from '../utils/helpers.js';
+import { toCurl, parseCurl, looksLikeCurl } from '../utils/curl.js';
+import { VariableStore, lookup, SECRET_MASK } from '../services/VariableService.js';
+import { prepareRequestData, authSource } from '../services/RequestPipeline.js';
+import { executeRequest } from '../services/RequestExecutor.js';
 import { RateLimitTester } from './RateLimitTester.js';
 
 export class RequestBuilder {
@@ -15,9 +18,9 @@ export class RequestBuilder {
         this.container = container;
         this.currentRequest = this.getDefaultRequest();
         this.activeBodyType = BODY_TYPES.JSON;
-        this.activeAuthType = AUTH_TYPES.NONE;
-        this.currentEnvironment = {};
-        this.rateLimitTester = new RateLimitTester(this);
+        this.activeAuthType = AUTH_TYPES.INHERIT;
+        this.temp = []; // temporary (script) variables, live until the page reloads
+                this.rateLimitTester = new RateLimitTester(this);
         // Load active tab from localStorage (default: headers)
         this.activeTab = localStorage.getItem('activeTab') || 'headers';
 
@@ -34,7 +37,8 @@ export class RequestBuilder {
             queryParams: [],
             body: '',
             formData: [{ key: '', value: '', enabled: true }],
-            auth: { type: AUTH_TYPES.NONE }
+            auth: { type: AUTH_TYPES.INHERIT },
+            scripts: { preRequest: '', test: '' }
         };
     }
 
@@ -55,9 +59,11 @@ export class RequestBuilder {
                     id="requestUrl" 
                     class="input flex-1" 
                     placeholder="https://api.example.com/endpoint"
-                    value="${this.currentRequest.url}"
+                    value="${escapeHtml(this.currentRequest.url)}"
                 >
                 
+                <button id="copyCurlBtn" class="btn btn-secondary" title="Copy as cURL (variables stay as {{name}})">cURL</button>
+
                 <button id="rateLimitTestBtn" class="btn btn-secondary" title="Rate Limit Tester">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
@@ -69,7 +75,8 @@ export class RequestBuilder {
                     <span id="sendBtnSpinner" class="spinner hidden"></span>
                 </button>
             </div>
-            
+            <div id="variableHints" class="flex flex-wrap gap-1 -mt-2 mb-3 text-xs"></div>
+
             <!-- Tabs -->
             <div class="border-b border-gray-200 dark:border-gray-700 mb-4">
                 <nav class="flex gap-4">
@@ -77,6 +84,7 @@ export class RequestBuilder {
                     <button class="tab ${this.activeTab === 'body' ? 'tab-active' : ''}" data-tab="body">Body</button>
                     <button class="tab ${this.activeTab === 'auth' ? 'tab-active' : ''}" data-tab="auth">Auth</button>
                     <button class="tab ${this.activeTab === 'params' ? 'tab-active' : ''}" data-tab="params">Query Params</button>
+                    <button class="tab ${this.activeTab === 'scripts' ? 'tab-active' : ''}" data-tab="scripts">Scripts${this.scriptsBadge()}</button>
                 </nav>
             </div>
             
@@ -127,6 +135,7 @@ export class RequestBuilder {
                     <div class="mb-4">
                         <label class="block text-sm font-medium mb-2">Auth Type</label>
                         <select id="authType" class="select">
+                            <option value="${AUTH_TYPES.INHERIT}">Inherit from parent</option>
                             <option value="${AUTH_TYPES.NONE}">No Auth</option>
                             <option value="${AUTH_TYPES.BEARER}">Bearer Token</option>
                             <option value="${AUTH_TYPES.BASIC}">Basic Auth</option>
@@ -148,10 +157,28 @@ export class RequestBuilder {
                         + Add Parameter
                     </button>
                 </div>
+
+                <!-- Scripts Tab -->
+                <div id="scriptsTab" class="tab-content ${this.activeTab !== 'scripts' ? 'hidden' : ''}">
+                    <label class="block text-sm font-medium mb-1">Pre-request script</label>
+                    <textarea id="reqPreScript" class="input font-mono text-sm w-full" rows="6" spellcheck="false"
+                        placeholder="pb.environment.set('ts', Date.now());">${escapeHtml(this.currentRequest.scripts?.preRequest || '')}</textarea>
+                    <label class="block text-sm font-medium mt-3 mb-1">Tests</label>
+                    <textarea id="reqTestScript" class="input font-mono text-sm w-full" rows="8" spellcheck="false"
+                        placeholder="pb.test('status is 200', () => pb.expect(pb.response).to.have.status(200));">${escapeHtml(this.currentRequest.scripts?.test || '')}</textarea>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        Runs after the collection and folder scripts. API: <code>pb.environment / collectionVariables / globals / variables</code>,
+                        <code>pb.request</code>, <code>pb.response</code>, <code>pb.test</code>, <code>pb.expect</code>, <code>console.log</code> (<code>pm</code> works as an alias).
+                        Scripts time out after 5 s.
+                    </p>
+                </div>
             </div>
         `;
 
+        this.renderVariableHints();
         this.renderHeaders();
+        const authSelect = this.container.querySelector('#authType');
+        if (authSelect) authSelect.value = this.currentRequest.auth?.type || AUTH_TYPES.INHERIT;
         this.renderAuthFields();
         this.renderParams();
         this.renderBodyEditor();
@@ -255,6 +282,15 @@ export class RequestBuilder {
                     </div>
                 `;
                 break;
+
+            case AUTH_TYPES.INHERIT: {
+                const located = VariableStore.locate(this.currentRequest.id);
+                const src = located ? authSource(this.currentRequest, located.chain) : null;
+                container.innerHTML = `<p class="text-sm text-gray-500">${src
+                    ? `Inherited from <strong>${escapeHtml(src)}</strong>`
+                    : 'No auth set on the parent (or request not saved yet)'}</p>`;
+                break;
+            }
 
             default:
                 container.innerHTML = '<p class="text-sm text-gray-500">No authentication</p>';
@@ -414,6 +450,9 @@ export class RequestBuilder {
             if (e.target.closest('#sendRequestBtn')) {
                 this.sendRequest();
             }
+            else if (e.target.closest('#copyCurlBtn')) {
+                this.copyCurl();
+            }
             // Rate Limit Test button
             else if (e.target.closest('#rateLimitTestBtn')) {
                 this.rateLimitTester.showModal();
@@ -464,11 +503,29 @@ export class RequestBuilder {
             }
         });
 
+        // Pasting a cURL command into the URL box fills the whole request
+        this.container.addEventListener('paste', (e) => {
+            if (e.target.id !== 'requestUrl') return;
+            const text = e.clipboardData?.getData('text') || '';
+            if (!looksLikeCurl(text)) return;
+            const parsed = parseCurl(text);
+            if (!parsed) return;
+            e.preventDefault();
+            this.applyImported(parsed);
+        });
+
         // Event delegation: tek bir listener tüm input event'leri yakalar
         this.container.addEventListener('input', (e) => {
             // Request URL
             if (e.target.id === 'requestUrl') {
                 this.currentRequest.url = e.target.value;
+                this.renderVariableHints();
+            }
+            else if (e.target.id === 'reqPreScript' || e.target.id === 'reqTestScript') {
+                this.currentRequest.scripts = {
+                    ...(this.currentRequest.scripts || {}),
+                    [e.target.id === 'reqPreScript' ? 'preRequest' : 'test']: e.target.value
+                };
             }
             // Header key/value inputs
             else if (e.target.classList.contains('header-key')) {
@@ -492,6 +549,27 @@ export class RequestBuilder {
                     this.currentRequest.formData[index].value = e.target.value;
                 }
             }
+            // Auth field inputs
+            else if (e.target.id === 'authToken') {
+                if (!this.currentRequest.auth) this.currentRequest.auth = {};
+                this.currentRequest.auth.token = e.target.value;
+            }
+            else if (e.target.id === 'authUsername') {
+                if (!this.currentRequest.auth) this.currentRequest.auth = {};
+                this.currentRequest.auth.username = e.target.value;
+            }
+            else if (e.target.id === 'authPassword') {
+                if (!this.currentRequest.auth) this.currentRequest.auth = {};
+                this.currentRequest.auth.password = e.target.value;
+            }
+            else if (e.target.id === 'authKey') {
+                if (!this.currentRequest.auth) this.currentRequest.auth = {};
+                this.currentRequest.auth.key = e.target.value;
+            }
+            else if (e.target.id === 'authValue') {
+                if (!this.currentRequest.auth) this.currentRequest.auth = {};
+                this.currentRequest.auth.value = e.target.value;
+            }
         });
 
         // Event delegation: tek bir listener tüm change event'leri yakalar
@@ -507,9 +585,21 @@ export class RequestBuilder {
             }
             // Auth Type
             else if (e.target.id === 'authType') {
-                this.activeAuthType = e.target.value;
-                this.currentRequest.auth = { type: e.target.value };
+                const newType = e.target.value;
+                const oldAuth = this.currentRequest.auth || {};
+                
+                // Preserve existing auth data when changing type
+                this.activeAuthType = newType;
+                this.currentRequest.auth = {
+                    ...oldAuth,
+                    type: newType
+                };
                 this.renderAuthFields();
+            }
+            // Auth Add To (for API Key)
+            else if (e.target.id === 'authAddTo') {
+                if (!this.currentRequest.auth) this.currentRequest.auth = {};
+                this.currentRequest.auth.addTo = e.target.value;
             }
             // Header enabled checkbox
             else if (e.target.classList.contains('header-enabled')) {
@@ -553,7 +643,8 @@ export class RequestBuilder {
             headers: this.container.querySelector('#headersTab'),
             body: this.container.querySelector('#bodyTab'),
             auth: this.container.querySelector('#authTab'),
-            params: this.container.querySelector('#paramsTab')
+            params: this.container.querySelector('#paramsTab'),
+            scripts: this.container.querySelector('#scriptsTab')
         };
 
         Object.keys(tabs).forEach(key => {
@@ -582,14 +673,29 @@ export class RequestBuilder {
         btnSpinner.classList.remove('hidden');
 
         try {
-            // Prepare request data
-            const requestData = this.prepareRequestData();
+            // Update current request with latest field values (especially auth)
+            this.getCurrentRequest();
+            
+            // Scripts + variables + proxy call in one pass
+            const request = { ...this.currentRequest, bodyType: this.activeBodyType };
+            const located = VariableStore.locate(this.currentRequest.id);
+            const result = await executeRequest(request, {
+                chain: located ? located.chain : [],
+                temp: this.temp,
+                interactive: true
+            });
 
-            // Emit REQUEST_SENT event for response saving
-            EventBus.emit(EVENTS.REQUEST_SENT, requestData);
-
-            // Send request
-            await ApiService.sendRequest(requestData);
+            if (!result.response && result.phase === 'pre-request') {
+                // Nothing was sent: show why in the response panel.
+                EventBus.emit(EVENTS.RESPONSE_RECEIVED, {
+                    success: false, error: true, message: result.error, status: 0,
+                    statusText: 'Script error', body: result.error, responseTime: 0
+                });
+            }
+            EventBus.emit(EVENTS.SCRIPT_RESULTS, {
+                requestId: this.currentRequest.id || null,
+                tests: result.tests, logs: result.logs, errors: result.scriptErrors
+            });
         } catch (error) {
             console.error('Request failed:', error);
         } finally {
@@ -600,96 +706,71 @@ export class RequestBuilder {
         }
     }
 
+    scriptsBadge() {
+        const s = this.currentRequest.scripts || {};
+        return (s.preRequest || s.test) ? ' <span class="text-primary-500">•</span>' : '';
+    }
+
     prepareRequestData() {
-        // Interpolate environment variables in URL
-        let url = interpolateVariables(this.currentRequest.url, this.currentEnvironment);
+        // Saved requests inherit auth/variables from their folders and collection;
+        // unsaved ones only see global + environment variables.
+        const located = VariableStore.locate(this.currentRequest.id);
+        const chain = located ? located.chain : [];
+        const request = { ...this.currentRequest, bodyType: this.activeBodyType };
+        const layers = VariableStore.layers(chain, request);
+        return prepareRequestData(request, layers, chain);
+    }
 
-        // Add query parameters
-        if (this.currentRequest.queryParams && this.currentRequest.queryParams.length > 0) {
-            const enabledParams = this.currentRequest.queryParams.filter(p => p.enabled && p.key);
-            if (enabledParams.length > 0) {
-                const separator = url.includes('?') ? '&' : '?';
-                const queryString = enabledParams
-                    .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
-                    .join('&');
-                url += separator + queryString;
+    /** Chips for every {{var}} in the URL: value on hover (secrets masked), red when unresolved. */
+    renderVariableHints() {
+        const box = this.container.querySelector('#variableHints');
+        if (!box) return;
+        const names = [...new Set([...(this.currentRequest.url || '').matchAll(/\{\{\s*([^{}\s]+?)\s*\}\}/g)].map(m => m[1]))];
+        const located = VariableStore.locate(this.currentRequest.id);
+        const layers = VariableStore.layers(located ? located.chain : [], this.currentRequest);
+        box.innerHTML = names.map(name => {
+            const hit = lookup(name, layers);
+            if (!hit) {
+                return `<span class="px-2 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200 font-mono" title="Unresolved variable">{{${escapeHtml(name)}}}</span>`;
             }
-        }
-
-        // Prepare headers
-        const headers = {};
-        this.currentRequest.headers
-            .filter(h => h.enabled && h.key)
-            .forEach(h => {
-                headers[h.key] = interpolateVariables(h.value, this.currentEnvironment);
-            });
-
-        // Prepare body
-        let body = null;
-        if (this.activeBodyType === BODY_TYPES.FORM && this.currentRequest.formData) {
-            // Convert form data to URL encoded
-            const enabledFields = this.currentRequest.formData.filter(f => f.enabled && f.key);
-            if (enabledFields.length > 0) {
-                body = enabledFields
-                    .map(f => {
-                        const key = interpolateVariables(f.key, this.currentEnvironment);
-                        const value = interpolateVariables(f.value, this.currentEnvironment);
-                        return `${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
-                    })
-                    .join('&');
-
-                // Set content type for form data
-                if (!headers['Content-Type']) {
-                    headers['Content-Type'] = 'application/x-www-form-urlencoded';
-                }
-            }
-        } else if (this.activeBodyType !== BODY_TYPES.NONE && this.currentRequest.body) {
-            body = interpolateVariables(this.currentRequest.body, this.currentEnvironment);
-
-            // Set content type for JSON
-            if (this.activeBodyType === BODY_TYPES.JSON && !headers['Content-Type']) {
-                headers['Content-Type'] = 'application/json';
-            }
-        }
-
-        // Prepare auth
-        let auth = null;
-        if (this.currentRequest.auth && this.currentRequest.auth.type !== AUTH_TYPES.NONE) {
-            auth = { ...this.currentRequest.auth };
-
-            // Interpolate auth values
-            if (auth.token) auth.token = interpolateVariables(auth.token, this.currentEnvironment);
-            if (auth.username) auth.username = interpolateVariables(auth.username, this.currentEnvironment);
-            if (auth.password) auth.password = interpolateVariables(auth.password, this.currentEnvironment);
-            if (auth.key) auth.key = interpolateVariables(auth.key, this.currentEnvironment);
-            if (auth.value) auth.value = interpolateVariables(auth.value, this.currentEnvironment);
-        }
-
-        return {
-            method: this.currentRequest.method,
-            url,
-            headers,
-            body,
-            auth
-        };
+            const shown = hit.secret ? SECRET_MASK : hit.value;
+            return `<span class="px-2 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200 font-mono" title="${escapeHtml(`${shown} (${hit.scope})`)}">{{${escapeHtml(name)}}}</span>`;
+        }).join('');
     }
 
     subscribeToEvents() {
+        EventBus.on(EVENTS.ENVIRONMENT_CHANGED, () => this.renderVariableHints());
+        EventBus.on(EVENTS.COLLECTION_UPDATED, () => this.renderVariableHints());
         EventBus.on(EVENTS.REQUEST_LOADED, (request) => {
             this.currentRequest = request;
             this.activeBodyType = request.bodyType || BODY_TYPES.JSON;
-            this.activeAuthType = request.auth?.type || AUTH_TYPES.NONE;
+            this.activeAuthType = request.auth?.type || AUTH_TYPES.INHERIT;
             this.render();
         });
+    }
 
-        EventBus.on(EVENTS.ENVIRONMENT_CHANGED, (environment) => {
-            this.currentEnvironment = environment;
-        });
+    copyCurl() {
+        const request = { ...this.getCurrentRequest(), bodyType: this.activeBodyType };
+        const located = VariableStore.locate(request.id);
+        const text = toCurl(request, located ? located.chain : []);
+        navigator.clipboard.writeText(text)
+            .then(() => showToast('cURL copied (variables kept as {{name}})', 'success'))
+            .catch(() => showToast('Could not copy to clipboard', 'error'));
+    }
+
+    /** Merge a parsed cURL request into the current one; id, name, scripts and variables are kept. */
+    applyImported(parsed) {
+        const keep = this.getCurrentRequest();
+        this.currentRequest = { ...keep, ...parsed, id: keep.id, name: keep.name, description: keep.description, scripts: keep.scripts, variables: keep.variables };
+        this.activeBodyType = parsed.bodyType;
+        this.activeAuthType = parsed.auth?.type || AUTH_TYPES.NONE;
+        this.render();
+        showToast('Request filled from cURL', 'success');
     }
 
     getCurrentRequest() {
         // Update auth fields before returning
-        const authType = this.container.querySelector('#authType')?.value || AUTH_TYPES.NONE;
+        const authType = this.container.querySelector('#authType')?.value || AUTH_TYPES.INHERIT;
 
         if (authType === AUTH_TYPES.BEARER) {
             this.currentRequest.auth = {
@@ -709,6 +790,8 @@ export class RequestBuilder {
                 value: this.container.querySelector('#authValue')?.value || '',
                 addTo: this.container.querySelector('#authAddTo')?.value || 'header'
             };
+        } else if (authType === AUTH_TYPES.INHERIT) {
+            this.currentRequest.auth = { type: AUTH_TYPES.INHERIT };
         } else {
             this.currentRequest.auth = { type: AUTH_TYPES.NONE };
         }

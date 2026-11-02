@@ -10,36 +10,38 @@ import StorageService from './StorageService.js';
 
 class ApiService {
     /**
-     * Send HTTP request through proxy
+     * Raw proxy call: no events, no history. Used by the collection runner and
+     * by sendRequest. Throws on transport/proxy errors.
+     * @param {Object} requestData Request configuration
+     * @returns {Promise<Object>} Response data
+     */
+    async send(requestData) {
+        const { method, url, headers, body, auth } = requestData;
+        const response = await fetch(API_ENDPOINTS.PROXY, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ method, url, headers: headers || {}, body: body || null, auth: auth || null })
+        });
+        const data = await response.json();
+        if (!response.ok || data.error) {
+            throw new Error(data.message || 'Request failed');
+        }
+        return data;
+    }
+
+    /**
+     * Send HTTP request through proxy and publish the UI events + history entry.
      * @param {Object} requestData Request configuration
      * @returns {Promise<Object>} Response data
      */
     async sendRequest(requestData) {
-        const { method, url, headers, body, auth } = requestData;
+        const { method, url } = requestData;
 
         // Emit request sent event
         EventBus.emit(EVENTS.REQUEST_SENT, requestData);
 
         try {
-            const response = await fetch(API_ENDPOINTS.PROXY, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    method,
-                    url,
-                    headers: headers || {},
-                    body: body || null,
-                    auth: auth || null
-                })
-            });
-
-            const data = await response.json();
-
-            if (!response.ok || data.error) {
-                throw new Error(data.message || 'Request failed');
-            }
+            const data = await this.send(requestData);
 
             // Add to history
             this.addToHistory({

@@ -27,7 +27,8 @@ export const AUTH_TYPES = {
     NONE: 'none',
     BEARER: 'bearer',
     BASIC: 'basic',
-    API_KEY: 'apikey'
+    API_KEY: 'apikey',
+    INHERIT: 'inherit'
 };
 
 export const BODY_TYPES = {
@@ -64,6 +65,7 @@ export const METHOD_COLORS = {
 export const API_ENDPOINTS = {
     COLLECTIONS: '/api/collections.php',
     ENVIRONMENTS: '/api/environments.php',
+    GLOBALS: '/api/globals.php',
     HISTORY: '/api/history.php',
     PROXY: '/api/proxy.php'
 };
@@ -76,7 +78,14 @@ export const EVENTS = {
     ENVIRONMENT_CHANGED: 'environment:changed',
     THEME_CHANGED: 'theme:changed',
     HISTORY_UPDATED: 'history:updated',
-    REQUEST_LOADED: 'request:loaded'
+    REQUEST_LOADED: 'request:loaded',
+    NODE_SETTINGS: 'node:settings',
+    COLLECTION_EXPORT: 'collection:export',
+    COLLECTION_IMPORTED: 'collection:imported',
+    ENVIRONMENT_IMPORTED: 'environment:imported',
+    SCRIPT_RESULTS: 'script:results',
+    CONSOLE_ENTRY: 'console:entry',
+    CONSOLE_CLEARED: 'console:cleared'
 };
 
 export const STORAGE_KEYS = {
