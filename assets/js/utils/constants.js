@@ -76,7 +76,10 @@ export const EVENTS = {
     ENVIRONMENT_CHANGED: 'environment:changed',
     THEME_CHANGED: 'theme:changed',
     HISTORY_UPDATED: 'history:updated',
-    REQUEST_LOADED: 'request:loaded'
+    REQUEST_LOADED: 'request:loaded',
+    NODE_SETTINGS: 'node:settings',
+    COLLECTION_EXPORT: 'collection:export',
+    COLLECTION_IMPORTED: 'collection:imported'
 };
 
 export const STORAGE_KEYS = {

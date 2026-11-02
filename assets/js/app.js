@@ -12,6 +12,7 @@ import { EnvironmentManager } from './components/EnvironmentManager.js';
 import { HistoryPanel } from './components/HistoryPanel.js';
 import { SavedResponsesPanel } from './components/SavedResponsesPanel.js';
 import { ResizeManager } from './utils/ResizeManager.js';
+import { findRequest } from './utils/collectionTree.js';
 
 class PostboyApp {
     constructor() {
@@ -157,7 +158,7 @@ class PostboyApp {
         if (currentRequest.id) {
             // Find which collection this request belongs to
             for (const collection of collectionManager.collections) {
-                const existingRequest = collection.requests?.find(r => r.id === currentRequest.id);
+                const existingRequest = findRequest(collection, currentRequest.id)?.request;
                 if (existingRequest) {
                     selectedCollectionId = collection.id;
                     requestName = existingRequest.name || currentRequest.name || currentRequest.url;
