@@ -13,6 +13,8 @@ import { HistoryPanel } from './components/HistoryPanel.js';
 import { SavedResponsesPanel } from './components/SavedResponsesPanel.js';
 import { ResizeManager } from './utils/ResizeManager.js';
 import { ImportExportPanel } from './components/ImportExportPanel.js';
+import { GlobalsPanel } from './components/GlobalsPanel.js';
+import { NodeSettingsPanel } from './components/NodeSettingsPanel.js';
 import { findRequest } from './utils/collectionTree.js';
 
 class PostboyApp {
@@ -73,6 +75,10 @@ class PostboyApp {
         // Environment Manager
         this.components.environmentManager = new EnvironmentManager();
 
+        // Globals + collection/folder settings
+        this.components.globalsPanel = new GlobalsPanel();
+        this.components.nodeSettingsPanel = new NodeSettingsPanel(this.components.collectionManager);
+
         // Import / Export
         this.components.importExportPanel = new ImportExportPanel();
 
@@ -107,6 +113,10 @@ class PostboyApp {
                 this.components.environmentManager?.showModal();
             });
         }
+
+        document.getElementById('globalsBtn')?.addEventListener('click', () => {
+            this.components.globalsPanel?.showModal();
+        });
 
         // Import / Export Button
         document.getElementById('importExportBtn')?.addEventListener('click', () => {

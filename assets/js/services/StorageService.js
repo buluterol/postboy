@@ -94,6 +94,21 @@ class StorageService {
         });
     }
 
+    // Globals
+
+    async getGlobals() {
+        const response = await this.request(API_ENDPOINTS.GLOBALS);
+        return response.data || [];
+    }
+
+    async saveGlobals(variables) {
+        const response = await this.request(API_ENDPOINTS.GLOBALS, {
+            method: 'PUT',
+            body: JSON.stringify({ variables })
+        });
+        return response.data;
+    }
+
     // History
 
     async getHistory() {

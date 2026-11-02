@@ -65,6 +65,7 @@ export const METHOD_COLORS = {
 export const API_ENDPOINTS = {
     COLLECTIONS: '/api/collections.php',
     ENVIRONMENTS: '/api/environments.php',
+    GLOBALS: '/api/globals.php',
     HISTORY: '/api/history.php',
     PROXY: '/api/proxy.php'
 };
