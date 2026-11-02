@@ -8,7 +8,9 @@ import { EVENTS, STORAGE_KEYS } from '../utils/constants.js';
 import { EventBus } from '../services/EventBus.js';
 import StorageService from '../services/StorageService.js';
 import { VariableStore } from '../services/VariableService.js';
-import { showToast, prompt, confirm, generateId, createElement } from '../utils/helpers.js';
+import { showToast, prompt, confirm, generateId, createElement, escapeHtml } from '../utils/helpers.js';
+import { variableTableHtml, attachVariableTable, readVariableTable } from './VariableTable.js';
+import { SECRET_MASK } from '../services/VariableService.js';
 
 export class EnvironmentManager {
     constructor() {
@@ -77,7 +79,7 @@ export class EnvironmentManager {
             <option value="">No Environment</option>
             ${this.environments.map(env => `
                 <option value="${env.id}" ${this.activeEnvironment?.id === env.id ? 'selected' : ''}>
-                    ${env.name}
+                    ${escapeHtml(env.name)}
                 </option>
             `).join('')}
         `;
@@ -138,7 +140,7 @@ export class EnvironmentManager {
                         <input type="radio" name="activeEnv" value="${env.id}" 
                                ${this.activeEnvironment?.id === env.id ? 'checked' : ''}
                                class="env-active-radio">
-                        <span class="font-semibold">${env.name}</span>
+                        <span class="font-semibold">${escapeHtml(env.name)}</span>
                     </div>
                     <div class="flex gap-2">
                         <button class="btn btn-secondary btn-sm env-edit" data-env-id="${env.id}">
@@ -162,8 +164,8 @@ export class EnvironmentManager {
                                 <tbody>
                                     ${env.variables.map(v => `
                                         <tr>
-                                            <td class="py-1 font-mono text-purple-600 dark:text-purple-400">{{${v.key}}}</td>
-                                            <td class="py-1 font-mono">${v.value}</td>
+                                            <td class="py-1 font-mono text-purple-600 dark:text-purple-400">{{${escapeHtml(v.key)}}}</td>
+                                            <td class="py-1 font-mono">${v.secret ? SECRET_MASK : escapeHtml(v.value)}</td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -266,7 +268,7 @@ export class EnvironmentManager {
 
     showEnvironmentEditModal(environment) {
         const isEdit = !!environment;
-        const variables = environment?.variables || [{ key: '', value: '' }];
+        const variables = environment?.variables || [];
 
         const editModal = createElement(`
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="envEditModal">
@@ -286,34 +288,14 @@ export class EnvironmentManager {
                         <!-- Name Input -->
                         <div>
                             <label class="block text-sm font-medium mb-2">Environment Name</label>
-                            <input type="text" id="envName" value="${environment?.name || ''}" 
+                            <input type="text" id="envName" value="${escapeHtml(environment?.name || '')}" 
                                    class="input w-full" placeholder="e.g., Production, Development" required>
                         </div>
 
                         <!-- Variables Table -->
                         <div>
-                            <div class="flex items-center justify-between mb-2">
-                                <label class="block text-sm font-medium">Variables</label>
-                                <button id="addEnvVariable" class="btn btn-secondary btn-sm">
-                                    + Add Variable
-                                </button>
-                            </div>
-                            
-                            <div class="bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden">
-                                <table class="w-full">
-                                    <thead class="bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                                        <tr>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400 w-12"></th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400">Key</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400">Value</th>
-                                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-600 dark:text-gray-400 w-16">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="envVariablesTable">
-                                        ${this.renderVariableRows(variables)}
-                                    </tbody>
-                                </table>
-                            </div>
+                            <label class="block text-sm font-medium mb-2">Variables</label>
+                            ${variableTableHtml('envVariablesTable', variables)}
                         </div>
 
                         <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -340,39 +322,6 @@ export class EnvironmentManager {
         this.attachEditModalEventListeners(editModal, environment);
     }
 
-    renderVariableRows(variables) {
-        if (!variables || variables.length === 0) {
-            variables = [{ key: '', value: '' }];
-        }
-
-        return variables.map((variable, index) => `
-            <tr class="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 variable-row" data-index="${index}">
-                <td class="px-4 py-3 text-center">
-                    <span class="drag-handle cursor-move text-gray-400 hover:text-gray-600">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
-                        </svg>
-                    </span>
-                </td>
-                <td class="px-4 py-3">
-                    <input type="text" class="input input-sm w-full font-mono variable-key" 
-                           value="${variable.key || ''}" placeholder="key">
-                </td>
-                <td class="px-4 py-3">
-                    <input type="text" class="input input-sm w-full font-mono variable-value" 
-                           value="${variable.value || ''}" placeholder="value">
-                </td>
-                <td class="px-4 py-3 text-center">
-                    <button class="text-red-500 hover:text-red-700 delete-variable" title="Delete">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                        </svg>
-                    </button>
-                </td>
-            </tr>
-        `).join('');
-    }
-
     attachEditModalEventListeners(modal, environment) {
         const isEdit = !!environment;
 
@@ -392,24 +341,7 @@ export class EnvironmentManager {
             }
         });
 
-        // Add variable
-        modal.querySelector('#addEnvVariable').addEventListener('click', () => {
-            const tbody = modal.querySelector('#envVariablesTable');
-            const newRow = createElement(this.renderVariableRows([{ key: '', value: '' }]));
-            tbody.appendChild(newRow);
-            
-            // Reattach delete listeners
-            this.attachVariableRowListeners(modal);
-            
-            // Focus on the new key input
-            const newKeyInput = newRow.querySelector('.variable-key');
-            if (newKeyInput) {
-                newKeyInput.focus();
-            }
-        });
-
-        // Delete and drag listeners
-        this.attachVariableRowListeners(modal);
+        attachVariableTable(modal, 'envVariablesTable');
 
         // Save environment
         modal.querySelector('#saveEnvEdit').addEventListener('click', async () => {
@@ -420,18 +352,7 @@ export class EnvironmentManager {
                 return;
             }
 
-            // Collect variables
-            const variables = [];
-            const rows = modal.querySelectorAll('.variable-row');
-            
-            rows.forEach(row => {
-                const key = row.querySelector('.variable-key').value.trim();
-                const value = row.querySelector('.variable-value').value.trim();
-                
-                if (key) { // Only add if key is not empty
-                    variables.push({ key, value });
-                }
-            });
+            const variables = readVariableTable(modal, 'envVariablesTable');
 
             try {
                 if (isEdit) {
@@ -473,26 +394,6 @@ export class EnvironmentManager {
                 console.error('Failed to save environment:', error);
                 showToast('Failed to save environment', 'error');
             }
-        });
-    }
-
-    attachVariableRowListeners(modal) {
-        // Delete variable
-        modal.querySelectorAll('.delete-variable').forEach(btn => {
-            btn.onclick = (e) => {
-                const row = e.target.closest('.variable-row');
-                const tbody = modal.querySelector('#envVariablesTable');
-                
-                // Keep at least one row
-                if (tbody.querySelectorAll('.variable-row').length > 1) {
-                    row.remove();
-                } else {
-                    // Clear the inputs instead of removing
-                    row.querySelector('.variable-key').value = '';
-                    row.querySelector('.variable-value').value = '';
-                    showToast('At least one row is required', 'info');
-                }
-            };
         });
     }
 }
