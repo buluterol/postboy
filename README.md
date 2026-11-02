@@ -54,13 +54,13 @@ mkdir -p data
 ```bash
 npm run dev
 # or
-php -S localhost:8000
+php -S 127.0.0.1:8000
 ```
 
 6. Open your browser and navigate to:
 
 ```
-http://localhost:8000
+http://127.0.0.1:8000
 ```
 
 ## Usage
