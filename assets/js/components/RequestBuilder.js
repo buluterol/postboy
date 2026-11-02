@@ -9,7 +9,7 @@ import { EventBus } from '../services/EventBus.js';
 import { createElement, escapeHtml } from '../utils/helpers.js';
 import { VariableStore, lookup, SECRET_MASK } from '../services/VariableService.js';
 import { prepareRequestData, authSource } from '../services/RequestPipeline.js';
-import ApiService from '../services/ApiService.js';
+import { executeRequest } from '../services/RequestExecutor.js';
 import { RateLimitTester } from './RateLimitTester.js';
 
 export class RequestBuilder {
@@ -18,6 +18,7 @@ export class RequestBuilder {
         this.currentRequest = this.getDefaultRequest();
         this.activeBodyType = BODY_TYPES.JSON;
         this.activeAuthType = AUTH_TYPES.INHERIT;
+        this.temp = []; // temporary (script) variables, live until the page reloads
                 this.rateLimitTester = new RateLimitTester(this);
         // Load active tab from localStorage (default: headers)
         this.activeTab = localStorage.getItem('activeTab') || 'headers';
@@ -35,7 +36,8 @@ export class RequestBuilder {
             queryParams: [],
             body: '',
             formData: [{ key: '', value: '', enabled: true }],
-            auth: { type: AUTH_TYPES.INHERIT }
+            auth: { type: AUTH_TYPES.INHERIT },
+            scripts: { preRequest: '', test: '' }
         };
     }
 
@@ -79,6 +81,7 @@ export class RequestBuilder {
                     <button class="tab ${this.activeTab === 'body' ? 'tab-active' : ''}" data-tab="body">Body</button>
                     <button class="tab ${this.activeTab === 'auth' ? 'tab-active' : ''}" data-tab="auth">Auth</button>
                     <button class="tab ${this.activeTab === 'params' ? 'tab-active' : ''}" data-tab="params">Query Params</button>
+                    <button class="tab ${this.activeTab === 'scripts' ? 'tab-active' : ''}" data-tab="scripts">Scripts${this.scriptsBadge()}</button>
                 </nav>
             </div>
             
@@ -150,6 +153,21 @@ export class RequestBuilder {
                     <button id="addParamBtn" class="btn btn-secondary btn-sm mt-2">
                         + Add Parameter
                     </button>
+                </div>
+
+                <!-- Scripts Tab -->
+                <div id="scriptsTab" class="tab-content ${this.activeTab !== 'scripts' ? 'hidden' : ''}">
+                    <label class="block text-sm font-medium mb-1">Pre-request script</label>
+                    <textarea id="reqPreScript" class="input font-mono text-sm w-full" rows="6" spellcheck="false"
+                        placeholder="pb.environment.set('ts', Date.now());">${escapeHtml(this.currentRequest.scripts?.preRequest || '')}</textarea>
+                    <label class="block text-sm font-medium mt-3 mb-1">Tests</label>
+                    <textarea id="reqTestScript" class="input font-mono text-sm w-full" rows="8" spellcheck="false"
+                        placeholder="pb.test('status is 200', () => pb.expect(pb.response).to.have.status(200));">${escapeHtml(this.currentRequest.scripts?.test || '')}</textarea>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        Runs after the collection and folder scripts. API: <code>pb.environment / collectionVariables / globals / variables</code>,
+                        <code>pb.request</code>, <code>pb.response</code>, <code>pb.test</code>, <code>pb.expect</code>, <code>console.log</code> (<code>pm</code> works as an alias).
+                        Scripts time out after 5 s.
+                    </p>
                 </div>
             </div>
         `;
@@ -486,6 +504,12 @@ export class RequestBuilder {
                 this.currentRequest.url = e.target.value;
                 this.renderVariableHints();
             }
+            else if (e.target.id === 'reqPreScript' || e.target.id === 'reqTestScript') {
+                this.currentRequest.scripts = {
+                    ...(this.currentRequest.scripts || {}),
+                    [e.target.id === 'reqPreScript' ? 'preRequest' : 'test']: e.target.value
+                };
+            }
             // Header key/value inputs
             else if (e.target.classList.contains('header-key')) {
                 const index = parseInt(e.target.dataset.index);
@@ -602,7 +626,8 @@ export class RequestBuilder {
             headers: this.container.querySelector('#headersTab'),
             body: this.container.querySelector('#bodyTab'),
             auth: this.container.querySelector('#authTab'),
-            params: this.container.querySelector('#paramsTab')
+            params: this.container.querySelector('#paramsTab'),
+            scripts: this.container.querySelector('#scriptsTab')
         };
 
         Object.keys(tabs).forEach(key => {
@@ -634,14 +659,26 @@ export class RequestBuilder {
             // Update current request with latest field values (especially auth)
             this.getCurrentRequest();
             
-            // Prepare request data
-            const requestData = this.prepareRequestData();
+            // Scripts + variables + proxy call in one pass
+            const request = { ...this.currentRequest, bodyType: this.activeBodyType };
+            const located = VariableStore.locate(this.currentRequest.id);
+            const result = await executeRequest(request, {
+                chain: located ? located.chain : [],
+                temp: this.temp,
+                interactive: true
+            });
 
-            // Emit REQUEST_SENT event for response saving
-            EventBus.emit(EVENTS.REQUEST_SENT, requestData);
-
-            // Send request
-            await ApiService.sendRequest(requestData);
+            if (!result.response && result.phase === 'pre-request') {
+                // Nothing was sent: show why in the response panel.
+                EventBus.emit(EVENTS.RESPONSE_RECEIVED, {
+                    success: false, error: true, message: result.error, status: 0,
+                    statusText: 'Script error', body: result.error, responseTime: 0
+                });
+            }
+            EventBus.emit(EVENTS.SCRIPT_RESULTS, {
+                requestId: this.currentRequest.id || null,
+                tests: result.tests, logs: result.logs, errors: result.scriptErrors
+            });
         } catch (error) {
             console.error('Request failed:', error);
         } finally {
@@ -650,6 +687,11 @@ export class RequestBuilder {
             btnText.classList.remove('hidden');
             btnSpinner.classList.add('hidden');
         }
+    }
+
+    scriptsBadge() {
+        const s = this.currentRequest.scripts || {};
+        return (s.preRequest || s.test) ? ' <span class="text-primary-500">•</span>' : '';
     }
 
     prepareRequestData() {

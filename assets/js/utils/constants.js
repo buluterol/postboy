@@ -82,7 +82,10 @@ export const EVENTS = {
     NODE_SETTINGS: 'node:settings',
     COLLECTION_EXPORT: 'collection:export',
     COLLECTION_IMPORTED: 'collection:imported',
-    ENVIRONMENT_IMPORTED: 'environment:imported'
+    ENVIRONMENT_IMPORTED: 'environment:imported',
+    SCRIPT_RESULTS: 'script:results',
+    CONSOLE_ENTRY: 'console:entry',
+    CONSOLE_CLEARED: 'console:cleared'
 };
 
 export const STORAGE_KEYS = {
