@@ -11,6 +11,7 @@ import { CollectionManager } from './components/CollectionManager.js';
 import { EnvironmentManager } from './components/EnvironmentManager.js';
 import { HistoryPanel } from './components/HistoryPanel.js';
 import { SavedResponsesPanel } from './components/SavedResponsesPanel.js';
+import { ConsolePanel } from './components/ConsolePanel.js';
 import { ResizeManager } from './utils/ResizeManager.js';
 import { ImportExportPanel } from './components/ImportExportPanel.js';
 import { GlobalsPanel } from './components/GlobalsPanel.js';
@@ -87,6 +88,9 @@ class PostboyApp {
 
         // Saved Responses Panel
         this.components.savedResponsesPanel = new SavedResponsesPanel();
+
+        // Console Panel
+        this.components.consolePanel = new ConsolePanel();
     }
 
     attachEventListeners() {
