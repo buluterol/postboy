@@ -141,7 +141,8 @@ export class ResponseViewer {
                     
             <!-- Tab Content -->
             <div id="responseTabContent">
-                <!-- Body Tab --> ${this.activeResponseTab !== 'body' ? 'hidden' : ''}">
+                <!-- Body Tab -->
+                <div id="responseBodyTab" class="tab-content ${this.activeResponseTab !== 'body' ? 'hidden' : ''}">
                     ${!error ? `
                         <!-- Format Buttons -->
                         <div class="flex gap-2 mb-3">
