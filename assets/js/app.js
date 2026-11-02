@@ -12,6 +12,7 @@ import { EnvironmentManager } from './components/EnvironmentManager.js';
 import { HistoryPanel } from './components/HistoryPanel.js';
 import { SavedResponsesPanel } from './components/SavedResponsesPanel.js';
 import { ConsolePanel } from './components/ConsolePanel.js';
+import { RunnerPanel } from './components/RunnerPanel.js';
 import { ResizeManager } from './utils/ResizeManager.js';
 import { ImportExportPanel } from './components/ImportExportPanel.js';
 import { GlobalsPanel } from './components/GlobalsPanel.js';
@@ -91,6 +92,9 @@ class PostboyApp {
 
         // Console Panel
         this.components.consolePanel = new ConsolePanel();
+
+        // Collection Runner
+        this.components.runnerPanel = new RunnerPanel();
     }
 
     attachEventListeners() {
@@ -117,6 +121,10 @@ class PostboyApp {
                 this.components.environmentManager?.showModal();
             });
         }
+
+        document.getElementById('runnerBtn')?.addEventListener('click', () => {
+            this.components.runnerPanel?.showModal();
+        });
 
         document.getElementById('globalsBtn')?.addEventListener('click', () => {
             this.components.globalsPanel?.showModal();
