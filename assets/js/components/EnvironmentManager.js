@@ -22,6 +22,10 @@ export class EnvironmentManager {
         await this.loadEnvironments();
         this.loadActiveEnvironment();
         this.updateEnvironmentSelector();
+        EventBus.on(EVENTS.ENVIRONMENT_IMPORTED, async () => {
+            await this.loadEnvironments();
+            this.updateEnvironmentSelector();
+        });
     }
 
     async loadEnvironments() {

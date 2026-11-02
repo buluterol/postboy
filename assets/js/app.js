@@ -12,6 +12,7 @@ import { EnvironmentManager } from './components/EnvironmentManager.js';
 import { HistoryPanel } from './components/HistoryPanel.js';
 import { SavedResponsesPanel } from './components/SavedResponsesPanel.js';
 import { ResizeManager } from './utils/ResizeManager.js';
+import { ImportExportPanel } from './components/ImportExportPanel.js';
 import { findRequest } from './utils/collectionTree.js';
 
 class PostboyApp {
@@ -72,6 +73,9 @@ class PostboyApp {
         // Environment Manager
         this.components.environmentManager = new EnvironmentManager();
 
+        // Import / Export
+        this.components.importExportPanel = new ImportExportPanel();
+
         // History Panel
         this.components.historyPanel = new HistoryPanel();
 
@@ -103,6 +107,11 @@ class PostboyApp {
                 this.components.environmentManager?.showModal();
             });
         }
+
+        // Import / Export Button
+        document.getElementById('importExportBtn')?.addEventListener('click', () => {
+            this.components.importExportPanel?.showModal();
+        });
 
         // History Button
         const historyBtn = document.getElementById('historyBtn');

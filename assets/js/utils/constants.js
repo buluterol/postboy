@@ -79,7 +79,8 @@ export const EVENTS = {
     REQUEST_LOADED: 'request:loaded',
     NODE_SETTINGS: 'node:settings',
     COLLECTION_EXPORT: 'collection:export',
-    COLLECTION_IMPORTED: 'collection:imported'
+    COLLECTION_IMPORTED: 'collection:imported',
+    ENVIRONMENT_IMPORTED: 'environment:imported'
 };
 
 export const STORAGE_KEYS = {
