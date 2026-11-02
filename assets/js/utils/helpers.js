@@ -87,7 +87,7 @@ export function getStatusCodeColor(statusCode) {
 export function interpolateVariables(str, variables = {}) {
     if (!str) return str;
 
-    return str.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+    return str.replace(/\{\{\s*([^{}\s]+?)\s*\}\}/g, (match, key) => {
         return variables[key] !== undefined ? variables[key] : match;
     });
 }
