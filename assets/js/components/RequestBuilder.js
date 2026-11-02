@@ -6,7 +6,8 @@
 
 import { HTTP_METHODS, AUTH_TYPES, BODY_TYPES, EVENTS } from '../utils/constants.js';
 import { EventBus } from '../services/EventBus.js';
-import { createElement, escapeHtml } from '../utils/helpers.js';
+import { createElement, escapeHtml, showToast } from '../utils/helpers.js';
+import { toCurl, parseCurl, looksLikeCurl } from '../utils/curl.js';
 import { VariableStore, lookup, SECRET_MASK } from '../services/VariableService.js';
 import { prepareRequestData, authSource } from '../services/RequestPipeline.js';
 import { executeRequest } from '../services/RequestExecutor.js';
@@ -61,6 +62,8 @@ export class RequestBuilder {
                     value="${escapeHtml(this.currentRequest.url)}"
                 >
                 
+                <button id="copyCurlBtn" class="btn btn-secondary" title="Copy as cURL (variables stay as {{name}})">cURL</button>
+
                 <button id="rateLimitTestBtn" class="btn btn-secondary" title="Rate Limit Tester">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
@@ -447,6 +450,9 @@ export class RequestBuilder {
             if (e.target.closest('#sendRequestBtn')) {
                 this.sendRequest();
             }
+            else if (e.target.closest('#copyCurlBtn')) {
+                this.copyCurl();
+            }
             // Rate Limit Test button
             else if (e.target.closest('#rateLimitTestBtn')) {
                 this.rateLimitTester.showModal();
@@ -495,6 +501,17 @@ export class RequestBuilder {
                 this.currentRequest.queryParams.splice(index, 1);
                 this.renderParams();
             }
+        });
+
+        // Pasting a cURL command into the URL box fills the whole request
+        this.container.addEventListener('paste', (e) => {
+            if (e.target.id !== 'requestUrl') return;
+            const text = e.clipboardData?.getData('text') || '';
+            if (!looksLikeCurl(text)) return;
+            const parsed = parseCurl(text);
+            if (!parsed) return;
+            e.preventDefault();
+            this.applyImported(parsed);
         });
 
         // Event delegation: tek bir listener tüm input event'leri yakalar
@@ -730,6 +747,25 @@ export class RequestBuilder {
             this.activeAuthType = request.auth?.type || AUTH_TYPES.INHERIT;
             this.render();
         });
+    }
+
+    copyCurl() {
+        const request = { ...this.getCurrentRequest(), bodyType: this.activeBodyType };
+        const located = VariableStore.locate(request.id);
+        const text = toCurl(request, located ? located.chain : []);
+        navigator.clipboard.writeText(text)
+            .then(() => showToast('cURL copied (variables kept as {{name}})', 'success'))
+            .catch(() => showToast('Could not copy to clipboard', 'error'));
+    }
+
+    /** Merge a parsed cURL request into the current one; id, name, scripts and variables are kept. */
+    applyImported(parsed) {
+        const keep = this.getCurrentRequest();
+        this.currentRequest = { ...keep, ...parsed, id: keep.id, name: keep.name, description: keep.description, scripts: keep.scripts, variables: keep.variables };
+        this.activeBodyType = parsed.bodyType;
+        this.activeAuthType = parsed.auth?.type || AUTH_TYPES.NONE;
+        this.render();
+        showToast('Request filled from cURL', 'success');
     }
 
     getCurrentRequest() {
