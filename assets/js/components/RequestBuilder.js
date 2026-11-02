@@ -6,7 +6,9 @@
 
 import { HTTP_METHODS, AUTH_TYPES, BODY_TYPES, EVENTS } from '../utils/constants.js';
 import { EventBus } from '../services/EventBus.js';
-import { interpolateVariables, createElement } from '../utils/helpers.js';
+import { createElement, escapeHtml } from '../utils/helpers.js';
+import { VariableStore } from '../services/VariableService.js';
+import { prepareRequestData, authSource } from '../services/RequestPipeline.js';
 import ApiService from '../services/ApiService.js';
 import { RateLimitTester } from './RateLimitTester.js';
 
@@ -15,9 +17,8 @@ export class RequestBuilder {
         this.container = container;
         this.currentRequest = this.getDefaultRequest();
         this.activeBodyType = BODY_TYPES.JSON;
-        this.activeAuthType = AUTH_TYPES.NONE;
-        this.currentEnvironment = {};
-        this.rateLimitTester = new RateLimitTester(this);
+        this.activeAuthType = AUTH_TYPES.INHERIT;
+                this.rateLimitTester = new RateLimitTester(this);
         // Load active tab from localStorage (default: headers)
         this.activeTab = localStorage.getItem('activeTab') || 'headers';
 
@@ -34,7 +35,7 @@ export class RequestBuilder {
             queryParams: [],
             body: '',
             formData: [{ key: '', value: '', enabled: true }],
-            auth: { type: AUTH_TYPES.NONE }
+            auth: { type: AUTH_TYPES.INHERIT }
         };
     }
 
@@ -127,6 +128,7 @@ export class RequestBuilder {
                     <div class="mb-4">
                         <label class="block text-sm font-medium mb-2">Auth Type</label>
                         <select id="authType" class="select">
+                            <option value="${AUTH_TYPES.INHERIT}">Inherit from parent</option>
                             <option value="${AUTH_TYPES.NONE}">No Auth</option>
                             <option value="${AUTH_TYPES.BEARER}">Bearer Token</option>
                             <option value="${AUTH_TYPES.BASIC}">Basic Auth</option>
@@ -152,6 +154,8 @@ export class RequestBuilder {
         `;
 
         this.renderHeaders();
+        const authSelect = this.container.querySelector('#authType');
+        if (authSelect) authSelect.value = this.currentRequest.auth?.type || AUTH_TYPES.INHERIT;
         this.renderAuthFields();
         this.renderParams();
         this.renderBodyEditor();
@@ -255,6 +259,15 @@ export class RequestBuilder {
                     </div>
                 `;
                 break;
+
+            case AUTH_TYPES.INHERIT: {
+                const located = VariableStore.locate(this.currentRequest.id);
+                const src = located ? authSource(this.currentRequest, located.chain) : null;
+                container.innerHTML = `<p class="text-sm text-gray-500">${src
+                    ? `Inherited from <strong>${escapeHtml(src)}</strong>`
+                    : 'No auth set on the parent (or request not saved yet)'}</p>`;
+                break;
+            }
 
             default:
                 container.innerHTML = '<p class="text-sm text-gray-500">No authentication</p>';
@@ -637,95 +650,27 @@ export class RequestBuilder {
     }
 
     prepareRequestData() {
-        // Interpolate environment variables in URL
-        let url = interpolateVariables(this.currentRequest.url, this.currentEnvironment);
-
-        // Add query parameters
-        if (this.currentRequest.queryParams && this.currentRequest.queryParams.length > 0) {
-            const enabledParams = this.currentRequest.queryParams.filter(p => p.enabled && p.key);
-            if (enabledParams.length > 0) {
-                const separator = url.includes('?') ? '&' : '?';
-                const queryString = enabledParams
-                    .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
-                    .join('&');
-                url += separator + queryString;
-            }
-        }
-
-        // Prepare headers
-        const headers = {};
-        this.currentRequest.headers
-            .filter(h => h.enabled && h.key)
-            .forEach(h => {
-                headers[h.key] = interpolateVariables(h.value, this.currentEnvironment);
-            });
-
-        // Prepare body
-        let body = null;
-        if (this.activeBodyType === BODY_TYPES.FORM && this.currentRequest.formData) {
-            // Convert form data to URL encoded
-            const enabledFields = this.currentRequest.formData.filter(f => f.enabled && f.key);
-            if (enabledFields.length > 0) {
-                body = enabledFields
-                    .map(f => {
-                        const key = interpolateVariables(f.key, this.currentEnvironment);
-                        const value = interpolateVariables(f.value, this.currentEnvironment);
-                        return `${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
-                    })
-                    .join('&');
-
-                // Set content type for form data
-                if (!headers['Content-Type']) {
-                    headers['Content-Type'] = 'application/x-www-form-urlencoded';
-                }
-            }
-        } else if (this.activeBodyType !== BODY_TYPES.NONE && this.currentRequest.body) {
-            body = interpolateVariables(this.currentRequest.body, this.currentEnvironment);
-
-            // Set content type for JSON
-            if (this.activeBodyType === BODY_TYPES.JSON && !headers['Content-Type']) {
-                headers['Content-Type'] = 'application/json';
-            }
-        }
-
-        // Prepare auth
-        let auth = null;
-        if (this.currentRequest.auth && this.currentRequest.auth.type !== AUTH_TYPES.NONE) {
-            auth = { ...this.currentRequest.auth };
-
-            // Interpolate auth values
-            if (auth.token) auth.token = interpolateVariables(auth.token, this.currentEnvironment);
-            if (auth.username) auth.username = interpolateVariables(auth.username, this.currentEnvironment);
-            if (auth.password) auth.password = interpolateVariables(auth.password, this.currentEnvironment);
-            if (auth.key) auth.key = interpolateVariables(auth.key, this.currentEnvironment);
-            if (auth.value) auth.value = interpolateVariables(auth.value, this.currentEnvironment);
-        }
-
-        return {
-            method: this.currentRequest.method,
-            url,
-            headers,
-            body,
-            auth
-        };
+        // Saved requests inherit auth/variables from their folders and collection;
+        // unsaved ones only see global + environment variables.
+        const located = VariableStore.locate(this.currentRequest.id);
+        const chain = located ? located.chain : [];
+        const request = { ...this.currentRequest, bodyType: this.activeBodyType };
+        const layers = VariableStore.layers(chain, request);
+        return prepareRequestData(request, layers, chain);
     }
 
     subscribeToEvents() {
         EventBus.on(EVENTS.REQUEST_LOADED, (request) => {
             this.currentRequest = request;
             this.activeBodyType = request.bodyType || BODY_TYPES.JSON;
-            this.activeAuthType = request.auth?.type || AUTH_TYPES.NONE;
+            this.activeAuthType = request.auth?.type || AUTH_TYPES.INHERIT;
             this.render();
-        });
-
-        EventBus.on(EVENTS.ENVIRONMENT_CHANGED, (environment) => {
-            this.currentEnvironment = environment;
         });
     }
 
     getCurrentRequest() {
         // Update auth fields before returning
-        const authType = this.container.querySelector('#authType')?.value || AUTH_TYPES.NONE;
+        const authType = this.container.querySelector('#authType')?.value || AUTH_TYPES.INHERIT;
 
         if (authType === AUTH_TYPES.BEARER) {
             this.currentRequest.auth = {
@@ -745,6 +690,8 @@ export class RequestBuilder {
                 value: this.container.querySelector('#authValue')?.value || '',
                 addTo: this.container.querySelector('#authAddTo')?.value || 'header'
             };
+        } else if (authType === AUTH_TYPES.INHERIT) {
+            this.currentRequest.auth = { type: AUTH_TYPES.INHERIT };
         } else {
             this.currentRequest.auth = { type: AUTH_TYPES.NONE };
         }

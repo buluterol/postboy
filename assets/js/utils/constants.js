@@ -27,7 +27,8 @@ export const AUTH_TYPES = {
     NONE: 'none',
     BEARER: 'bearer',
     BASIC: 'basic',
-    API_KEY: 'apikey'
+    API_KEY: 'apikey',
+    INHERIT: 'inherit'
 };
 
 export const BODY_TYPES = {

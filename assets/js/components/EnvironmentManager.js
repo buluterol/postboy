@@ -7,6 +7,7 @@
 import { EVENTS, STORAGE_KEYS } from '../utils/constants.js';
 import { EventBus } from '../services/EventBus.js';
 import StorageService from '../services/StorageService.js';
+import { VariableStore } from '../services/VariableService.js';
 import { showToast, prompt, confirm, generateId, createElement } from '../utils/helpers.js';
 
 export class EnvironmentManager {
@@ -58,21 +59,12 @@ export class EnvironmentManager {
     setActiveEnvironment(environment) {
         this.activeEnvironment = environment;
 
-        // Convert variables array to object
-        const variables = {};
-        if (environment && environment.variables) {
-            environment.variables.forEach(v => {
-                if (v.key) {
-                    variables[v.key] = v.value;
-                }
-            });
-        }
-
         // Save to localStorage
         localStorage.setItem(STORAGE_KEYS.ACTIVE_ENVIRONMENT, environment?.id || '');
 
         // Emit event
-        EventBus.emit(EVENTS.ENVIRONMENT_CHANGED, variables);
+        VariableStore.setEnvironment(environment || null);
+        EventBus.emit(EVENTS.ENVIRONMENT_CHANGED, environment || null);
 
         this.updateEnvironmentSelector();
     }

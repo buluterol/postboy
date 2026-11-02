@@ -6,6 +6,7 @@
 
 import { EVENTS, METHOD_COLORS } from '../utils/constants.js';
 import { EventBus } from '../services/EventBus.js';
+import { VariableStore } from '../services/VariableService.js';
 import StorageService from '../services/StorageService.js';
 import { prompt, confirm, showToast, generateId, escapeHtml } from '../utils/helpers.js';
 import { createFolder, normalizeNode, findRequest, findNode, countRequests } from '../utils/collectionTree.js';
@@ -28,6 +29,7 @@ export class CollectionManager {
     async loadCollections() {
         try {
             this.collections = (await StorageService.getCollections()).map(normalizeNode);
+            VariableStore.setCollections(this.collections);
 
             // Load collection order from localStorage
             const savedOrder = localStorage.getItem('collectionOrder');
