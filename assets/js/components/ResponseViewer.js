@@ -20,7 +20,8 @@ export class ResponseViewer {
         this.currentRequest = null;
         this.sentRequestData = null; // Actual request data sent (after interpolation)
         this.activeFormat = RESPONSE_FORMATS.JSON;
-        this.activeResponseTab = 'body'; // body, headers, request
+        this.activeResponseTab = 'body'; // body, headers, request, tests
+        this.scriptResults = null;
         this.dropdownOpen = false;
 
         this.subscribeToEvents();
@@ -136,6 +137,7 @@ export class ResponseViewer {
                             <button class="tab ${this.activeResponseTab === 'body' ? 'tab-active' : ''}" data-tab="body">Body</button>
                             <button class="tab ${this.activeResponseTab === 'headers' ? 'tab-active' : ''}" data-tab="headers">Headers</button>
                             <button class="tab ${this.activeResponseTab === 'request' ? 'tab-active' : ''}" data-tab="request">Request</button>
+                            <button class="tab ${this.activeResponseTab === 'tests' ? 'tab-active' : ''}" data-tab="tests">Tests${this.testsBadge()}</button>
                         </nav>
                     </div>
                     
@@ -179,6 +181,11 @@ export class ResponseViewer {
                     <div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 overflow-auto max-h-96 scrollbar-thin">
                         ${this.renderRequest()}
                     </div>
+                </div>
+
+                <!-- Tests Tab -->
+                <div id="responseTestsTab" class="tab-content ${this.activeResponseTab !== 'tests' ? 'hidden' : ''}">
+                    ${this.renderTests()}
                 </div>
             </div>
         `;
@@ -434,23 +441,38 @@ export class ResponseViewer {
         });
 
         // Update tab content
-        const bodyTab = this.container.querySelector('#responseBodyTab');
-        const headersTab = this.container.querySelector('#responseHeadersTab');
-        const requestTab = this.container.querySelector('#responseRequestTab');
+        const panes = { body: '#responseBodyTab', headers: '#responseHeadersTab', request: '#responseRequestTab', tests: '#responseTestsTab' };
+        Object.entries(panes).forEach(([name, selector]) => {
+            this.container.querySelector(selector)?.classList.toggle('hidden', name !== tabName);
+        });
+    }
 
-        if (tabName === 'body') {
-            bodyTab.classList.remove('hidden');
-            headersTab.classList.add('hidden');
-            requestTab.classList.add('hidden');
-        } else if (tabName === 'headers') {
-            bodyTab.classList.add('hidden');
-            headersTab.classList.remove('hidden');
-            requestTab.classList.add('hidden');
-        } else if (tabName === 'request') {
-            bodyTab.classList.add('hidden');
-            headersTab.classList.add('hidden');
-            requestTab.classList.remove('hidden');
+    testsBadge() {
+        const r = this.scriptResults;
+        if (!r || (!r.tests.length && !r.errors.length)) return '';
+        const failed = r.tests.filter(t => !t.passed).length + r.errors.length;
+        const cls = failed ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400';
+        return ` <span class="${cls} text-xs">${r.tests.length - r.tests.filter(t => !t.passed).length}/${r.tests.length}</span>`;
+    }
+
+    renderTests() {
+        const r = this.scriptResults;
+        if (!r || (!r.tests.length && !r.errors.length)) {
+            return '<p class="text-sm text-gray-500 dark:text-gray-400 py-4">No tests ran. Add <code>pb.test(...)</code> in the Scripts tab, on the folder or on the collection.</p>';
         }
+        const passed = r.tests.filter(t => t.passed).length;
+        const failed = r.tests.length - passed;
+        const row = (ok, title, detail) => `
+            <li class="flex gap-2 py-1 text-sm">
+                <span class="${ok ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} font-semibold w-12 shrink-0">${ok ? 'PASS' : 'FAIL'}</span>
+                <span><span>${this.escapeHtml(title)}</span>${detail ? `<span class="block text-xs text-gray-500 dark:text-gray-400 font-mono">${this.escapeHtml(detail)}</span>` : ''}</span>
+            </li>`;
+        return `
+            <p class="text-sm mb-2" id="testsSummary"><span class="text-green-600 dark:text-green-400">${passed} passed</span> · <span class="${failed ? 'text-red-600 dark:text-red-400' : ''}">${failed} failed</span></p>
+            <ul class="divide-y divide-gray-200 dark:divide-gray-700">
+                ${r.errors.map(e => row(false, `${e.phase} script (${e.source})`, e.message)).join('')}
+                ${r.tests.map(t => row(t.passed, t.name, t.error)).join('')}
+            </ul>`;
     }
 
     copyResponse() {
@@ -550,6 +572,13 @@ export class ResponseViewer {
         EventBus.on(EVENTS.REQUEST_SENT, (requestData) => {
             // Store current request for saving purposes
             this.currentRequest = requestData;
+            this.scriptResults = null;
+        });
+
+        // Arrives after RESPONSE_RECEIVED; redraw so the Tests tab shows this run
+        EventBus.on(EVENTS.SCRIPT_RESULTS, (results) => {
+            this.scriptResults = results;
+            if (this.currentResponse) this.render();
         });
 
         EventBus.on(EVENTS.RESPONSE_RECEIVED, (response) => {
