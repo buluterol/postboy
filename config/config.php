@@ -38,7 +38,8 @@ if (!is_dir(DATA_DIR)) {
 $dataFiles = [
     'collections.json' => [],
     'environments.json' => [],
-    'history.json' => []
+    'history.json' => [],
+    'globals.json' => []
 ];
 
 foreach ($dataFiles as $filename => $defaultContent) {

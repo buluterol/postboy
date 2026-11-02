@@ -68,6 +68,10 @@ function handlePost()
         'name' => $data['name'],
         'description' => $data['description'] ?? '',
         'requests' => $data['requests'] ?? [],
+        'folders' => $data['folders'] ?? [],
+        'auth' => $data['auth'] ?? ['type' => 'none'],
+        'variables' => $data['variables'] ?? [],
+        'scripts' => $data['scripts'] ?? ['preRequest' => '', 'test' => ''],
         'createdAt' => date('c'),
         'updatedAt' => date('c')
     ];
@@ -108,6 +112,11 @@ function handlePut()
             $collection['name'] = $data['name'] ?? $collection['name'];
             $collection['description'] = $data['description'] ?? $collection['description'];
             $collection['requests'] = $data['requests'] ?? $collection['requests'];
+            foreach (['folders', 'auth', 'variables', 'scripts'] as $field) {
+                if (array_key_exists($field, $data)) {
+                    $collection[$field] = $data[$field];
+                }
+            }
             $collection['updatedAt'] = date('c');
             $found = true;
             break;
