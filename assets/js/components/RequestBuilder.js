@@ -492,6 +492,27 @@ export class RequestBuilder {
                     this.currentRequest.formData[index].value = e.target.value;
                 }
             }
+            // Auth field inputs
+            else if (e.target.id === 'authToken') {
+                if (!this.currentRequest.auth) this.currentRequest.auth = {};
+                this.currentRequest.auth.token = e.target.value;
+            }
+            else if (e.target.id === 'authUsername') {
+                if (!this.currentRequest.auth) this.currentRequest.auth = {};
+                this.currentRequest.auth.username = e.target.value;
+            }
+            else if (e.target.id === 'authPassword') {
+                if (!this.currentRequest.auth) this.currentRequest.auth = {};
+                this.currentRequest.auth.password = e.target.value;
+            }
+            else if (e.target.id === 'authKey') {
+                if (!this.currentRequest.auth) this.currentRequest.auth = {};
+                this.currentRequest.auth.key = e.target.value;
+            }
+            else if (e.target.id === 'authValue') {
+                if (!this.currentRequest.auth) this.currentRequest.auth = {};
+                this.currentRequest.auth.value = e.target.value;
+            }
         });
 
         // Event delegation: tek bir listener tüm change event'leri yakalar
@@ -507,9 +528,21 @@ export class RequestBuilder {
             }
             // Auth Type
             else if (e.target.id === 'authType') {
-                this.activeAuthType = e.target.value;
-                this.currentRequest.auth = { type: e.target.value };
+                const newType = e.target.value;
+                const oldAuth = this.currentRequest.auth || {};
+                
+                // Preserve existing auth data when changing type
+                this.activeAuthType = newType;
+                this.currentRequest.auth = {
+                    ...oldAuth,
+                    type: newType
+                };
                 this.renderAuthFields();
+            }
+            // Auth Add To (for API Key)
+            else if (e.target.id === 'authAddTo') {
+                if (!this.currentRequest.auth) this.currentRequest.auth = {};
+                this.currentRequest.auth.addTo = e.target.value;
             }
             // Header enabled checkbox
             else if (e.target.classList.contains('header-enabled')) {
@@ -582,6 +615,9 @@ export class RequestBuilder {
         btnSpinner.classList.remove('hidden');
 
         try {
+            // Update current request with latest field values (especially auth)
+            this.getCurrentRequest();
+            
             // Prepare request data
             const requestData = this.prepareRequestData();
 
