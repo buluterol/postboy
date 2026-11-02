@@ -7,7 +7,7 @@
 import { HTTP_METHODS, AUTH_TYPES, BODY_TYPES, EVENTS } from '../utils/constants.js';
 import { EventBus } from '../services/EventBus.js';
 import { createElement, escapeHtml } from '../utils/helpers.js';
-import { VariableStore } from '../services/VariableService.js';
+import { VariableStore, lookup, SECRET_MASK } from '../services/VariableService.js';
 import { prepareRequestData, authSource } from '../services/RequestPipeline.js';
 import ApiService from '../services/ApiService.js';
 import { RateLimitTester } from './RateLimitTester.js';
@@ -56,7 +56,7 @@ export class RequestBuilder {
                     id="requestUrl" 
                     class="input flex-1" 
                     placeholder="https://api.example.com/endpoint"
-                    value="${this.currentRequest.url}"
+                    value="${escapeHtml(this.currentRequest.url)}"
                 >
                 
                 <button id="rateLimitTestBtn" class="btn btn-secondary" title="Rate Limit Tester">
@@ -70,7 +70,8 @@ export class RequestBuilder {
                     <span id="sendBtnSpinner" class="spinner hidden"></span>
                 </button>
             </div>
-            
+            <div id="variableHints" class="flex flex-wrap gap-1 -mt-2 mb-3 text-xs"></div>
+
             <!-- Tabs -->
             <div class="border-b border-gray-200 dark:border-gray-700 mb-4">
                 <nav class="flex gap-4">
@@ -153,6 +154,7 @@ export class RequestBuilder {
             </div>
         `;
 
+        this.renderVariableHints();
         this.renderHeaders();
         const authSelect = this.container.querySelector('#authType');
         if (authSelect) authSelect.value = this.currentRequest.auth?.type || AUTH_TYPES.INHERIT;
@@ -482,6 +484,7 @@ export class RequestBuilder {
             // Request URL
             if (e.target.id === 'requestUrl') {
                 this.currentRequest.url = e.target.value;
+                this.renderVariableHints();
             }
             // Header key/value inputs
             else if (e.target.classList.contains('header-key')) {
@@ -659,7 +662,26 @@ export class RequestBuilder {
         return prepareRequestData(request, layers, chain);
     }
 
+    /** Chips for every {{var}} in the URL: value on hover (secrets masked), red when unresolved. */
+    renderVariableHints() {
+        const box = this.container.querySelector('#variableHints');
+        if (!box) return;
+        const names = [...new Set([...(this.currentRequest.url || '').matchAll(/\{\{\s*([^{}\s]+?)\s*\}\}/g)].map(m => m[1]))];
+        const located = VariableStore.locate(this.currentRequest.id);
+        const layers = VariableStore.layers(located ? located.chain : [], this.currentRequest);
+        box.innerHTML = names.map(name => {
+            const hit = lookup(name, layers);
+            if (!hit) {
+                return `<span class="px-2 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200 font-mono" title="Unresolved variable">{{${escapeHtml(name)}}}</span>`;
+            }
+            const shown = hit.secret ? SECRET_MASK : hit.value;
+            return `<span class="px-2 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200 font-mono" title="${escapeHtml(`${shown} (${hit.scope})`)}">{{${escapeHtml(name)}}}</span>`;
+        }).join('');
+    }
+
     subscribeToEvents() {
+        EventBus.on(EVENTS.ENVIRONMENT_CHANGED, () => this.renderVariableHints());
+        EventBus.on(EVENTS.COLLECTION_UPDATED, () => this.renderVariableHints());
         EventBus.on(EVENTS.REQUEST_LOADED, (request) => {
             this.currentRequest = request;
             this.activeBodyType = request.bodyType || BODY_TYPES.JSON;
